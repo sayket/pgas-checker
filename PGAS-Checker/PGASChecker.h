@@ -12,8 +12,9 @@
 #include <unordered_map>
 #include <utility>
 
-using namespace clang;
-using namespace ento;
+namespace clang{
+namespace ento{
+namespace osmem{
 
 // event handlers for specific routines
 typedef void (*Handler)(int handler, const CallEvent &Call, CheckerContext &C);
@@ -161,4 +162,7 @@ public:
   PGASChecker(routineHandlers (*addHandlers)());
 };
 
+}
+}
+}
 #endif

@@ -1,4 +1,8 @@
 #include "OpenShmemChecker.h"
+
+namespace clang{
+namespace ento{
+namespace osmem{  
 /**
  * @brief OpenShmem specific implementation of a get handler
  *
@@ -59,6 +63,9 @@ routineHandlers addHandlers() {
                    std::make_pair(READ_FROM_MEMORY, shmemGetHandler));
 
   return handlers;
+}
+}
+}
 }
 
 /**

@@ -1,5 +1,8 @@
 #include "PGASChecker.h"
 
+namespace clang{
+namespace ento{
+namespace osmem{
 /**
  * @brief every time we make a change to the program state we need to invoke the
  * transform state
@@ -104,4 +107,7 @@ ProgramStateRef Properties::markAsSynchronized(ProgramStateRef State,
                                                SymbolRef variable) {
   State = State->set<CheckerState>(variable, RefState::getSynchronized());
   return State;
+}
+}
+}
 }
