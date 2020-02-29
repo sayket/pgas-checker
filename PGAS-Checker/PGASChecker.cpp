@@ -107,6 +107,7 @@ void DefaultHandlers::handleNonBlockingWrites(int handler,
 
   switch (handler) {
   case PRE_CALL:
+  {
     /*
     to retrieve all all arguments of the invoked it you could something like
     int argCount =  Call.getNumArgs();
@@ -116,13 +117,14 @@ void DefaultHandlers::handleNonBlockingWrites(int handler,
       //do something useful with this
     }
     */
-    const RefState *SS = State->get<CheckerState>(destVariable);
+      const RefState *SS = State->get<CheckerState>(destVariable);
 
-    if (!SS) {
+      if (!SS) {
       // TODOS: replace couts with bug reports
-      std::cout << ErrorMessages::VARIABLE_NOT_SYMMETRIC;
-      return;
+        std::cout << ErrorMessages::VARIABLE_NOT_SYMMETRIC;
+        return;
     }
+  }
     break;
   case POST_CALL:
     // remove the unintialized variables
