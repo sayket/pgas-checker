@@ -12,12 +12,12 @@
 #include <unordered_map>
 #include <utility>
 
-namespace clang{
-namespace ento{
-namespace osmem{
+using namespace clang;
+using namespace ento;
 
 // event handlers for specific routines
 typedef void (*Handler)(int handler, const CallEvent &Call, CheckerContext &C);
+
 // pgas specific routine types
 typedef enum routines {
   MEMORY_ALLOC,
@@ -30,6 +30,7 @@ typedef enum routines {
 
 // ( non_blocking_routine_type, event_handler  )
 typedef std::pair<Routine, Handler> Pair;
+
 // hold the mapping between routine name of a specific pgas programming model
 // routine, routine type and the event handler
 // [shmem_put] => Pair
@@ -78,8 +79,9 @@ typedef llvm::ImmutableSet<SymbolRef> PGASSetImpl;
 // key, for instance if you find a need to use a key of a different type this
 // Please refer to this
 // https://github.com/llvm-mirror/clang/blob/master/lib/StaticAnalyzer/Checkers/MPI-Checker/MPITypes.h
-namespace clang {
-namespace ento {
+namespace clang{
+namespace ento{
+
 template <>
 struct ProgramStateTrait<CheckerState>
     : public ProgramStatePartialTrait<PGASMapImpl> {
@@ -88,9 +90,24 @@ struct ProgramStateTrait<CheckerState>
     return &index;
   }
 };
-} // namespace ento
-} // namespace clang
 
+// Declaration of the Base Checker
+class PGASChecker : public Checker<check::PostCall, check::PreCall> {
+
+private:
+  void eventHandler(int handler, std::string &routineName,
+                    const CallEvent &Call, CheckerContext &C) const;
+  void addDefaultHandlers();
+  Handler getDefaultHandler(Routine routineType) const;
+
+public:
+  void checkPostCall(const CallEvent &Call, CheckerContext &C) const;
+  void checkPreCall(const CallEvent &Call, CheckerContext &C) const;
+  PGASChecker(routineHandlers (*addHandlers)());
+};
+
+}
+}
 // set of unitilized variables;
 // llvm immutable set of type PGASSetImpl
 REGISTER_TRAIT_WITH_PROGRAMSTATE(UnintializedVariables, PGASSetImpl)
@@ -147,22 +164,6 @@ ProgramStateRef markAsUnsynchronized(ProgramStateRef State, SymbolRef variable);
 ProgramStateRef markAsSynchronized(ProgramStateRef State, SymbolRef variable);
 } // namespace Properties
 
-// Declaration of the Base Checker
-class PGASChecker : public Checker<check::PostCall, check::PreCall> {
 
-private:
-  void eventHandler(int handler, std::string &routineName,
-                    const CallEvent &Call, CheckerContext &C) const;
-  void addDefaultHandlers();
-  Handler getDefaultHandler(Routine routineType) const;
 
-public:
-  void checkPostCall(const CallEvent &Call, CheckerContext &C) const;
-  void checkPreCall(const CallEvent &Call, CheckerContext &C) const;
-  PGASChecker(routineHandlers (*addHandlers)());
-};
-
-}
-}
-}
 #endif

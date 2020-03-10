@@ -1,8 +1,7 @@
 #include "PGASChecker.h"
 
-namespace clang{
-namespace ento{
-namespace osmem{
+using namespace clang;
+using namespace ento;
 
 typedef std::unordered_map<int, Handler> defaultHandlers;
 defaultHandlers defaults;
@@ -339,7 +338,4 @@ void PGASChecker::checkPreCall(const CallEvent &Call, CheckerContext &C) const {
   std::string routineName = FD->getNameInfo().getAsString();
 
   eventHandler(PRE_CALL, routineName, Call, C);
-}
-}
-}
 }

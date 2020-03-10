@@ -53,3 +53,8 @@ Mkfile.old
 dkms.conf
 
 sftp-config.json
+.DS_Store
+PGAS-Checker/.DS_Store
+PGAS-Checker/UjjChecker.cpp
+PGAS-Checker/UjjChecker.h
+MPI-Checker/
