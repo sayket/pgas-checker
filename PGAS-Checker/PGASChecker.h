@@ -92,7 +92,7 @@ struct ProgramStateTrait<CheckerState>
 };
 
 // Declaration of the Base Checker
-class PGASChecker : public Checker<check::PostCall, check::PreCall> {
+class PGASChecker : public Checker<check::PostCall, check::PreCall, check::RegionChanges> {
 
 private:
   void eventHandler(int handler, std::string &routineName,
@@ -103,6 +103,13 @@ private:
 public:
   void checkPostCall(const CallEvent &Call, CheckerContext &C) const;
   void checkPreCall(const CallEvent &Call, CheckerContext &C) const;
+  bool wantsRegionChangeUpdate(ProgramStateRef St) const;
+  ProgramStateRef checkRegionChanges(ProgramStateRef State,
+                       const InvalidatedSymbols *Invalidated,
+                       ArrayRef<const MemRegion *> ExplicitRegions,
+                       ArrayRef<const MemRegion *> Regions,
+                       const LocationContext*  LCtx,
+                       const CallEvent *Call) const;
   PGASChecker(routineHandlers (*addHandlers)());
 };
 
@@ -124,6 +131,8 @@ const std::string UNSYNCHRONIZED_ACCESS = "Unsynchronized access to variable";
 const std::string ACCESS_FREED_VARIABLE = "Trying to access a freed variable";
 const std::string ACCESS_UNINTIALIZED_VARIABLE =
     "Trying to access a unitialized variable";
+const std::string ACCESS_ARRAY_VARIABLE =
+    "Some Memory Region Changed";    
 } // namespace ErrorMessages
 
 // function declarations for default handlers

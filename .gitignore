@@ -58,3 +58,4 @@ PGAS-Checker/.DS_Store
 PGAS-Checker/UjjChecker.cpp
 PGAS-Checker/UjjChecker.h
 MPI-Checker/
+MallocChecker.cpp

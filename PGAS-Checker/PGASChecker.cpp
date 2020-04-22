@@ -8,6 +8,26 @@ defaultHandlers defaults;
 routineHandlers handlers;
 std::unique_ptr<BuiltinBug> BT;
 
+void printTrackedVariables(CheckerContext &C){
+
+  ProgramStateRef State = C.getState();
+  auto trackedVariables = State->get<CheckerState>();
+
+  for (PGASMapImpl::iterator I = trackedVariables.begin(),
+                               E = trackedVariables.end();
+         I != E; ++I) {
+      SymbolRef symmetricVariable = I->first;
+      std::cout << symmetricVariable->getKind() << ",";
+    }
+    std::cout << "\n";
+}
+
+// Sval getMemorySize(CheckerContext &C, const CallEvent &Call){
+
+//   SValBuilder &SB = C.getSValBuilder();
+
+// }
+
 // Sample Bug Report
 // void reportUnsynchronizedAccess(
 //   const CallEvent &Call, CheckerContext &C) {
@@ -44,6 +64,95 @@ void DefaultHandlers::handleMemoryAllocations(int handler,
     break;
 
   case POST_CALL:
+
+    const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(Call.getDecl());
+    if (!FD) return;
+    // get the invoked routine name
+    std::string routineName = FD->getNameInfo().getAsString();
+    std::cout << routineName << "-\n";
+
+    const MemRegion* ptrRegion = Call.getReturnValue().getAsRegion();
+    if(!ptrRegion){
+      std::cout << "Get As Region Failed\n";
+    }
+  else {
+    std::cout << "Get As Region Passed\n";
+    ptrRegion = ptrRegion->StripCasts();
+    const Type* ptr = allocatedVariable->getType().getTypePtr();
+    bool res = ptr->isVoidPointerType();
+
+    std::cout << "Void Pointer:" << res << "\n";
+
+    // Optional<llvm::APSInt> num_bytes = Call.getArgSVal(0).getAs<loc::APSInt>();
+    // if(num_bytes){
+    //   std::cout << (num_bytes->getValue()).getExtValue();
+    // } else {
+    //   std::cout << "Invalid Conversion\n";
+    // }
+
+    // Aim - to get the number of bytes passed
+    // Attempt1
+
+
+
+    SVal s = Call.getArgSVal(0);
+    // const llvm::APSInt& s_val;
+    int64_t val = 0; // Will hold value of SVal
+
+if (!s.isUnknownOrUndef() && s.isConstant()) {
+    switch (s.getBaseKind()) {
+        case SVal::NonLocKind: {
+            std::cout << "Non Loc Kind\n";
+            // s_val = s.getAs<nonloc::ConcreteInt>().getValue();
+            val = s.getAs<nonloc::ConcreteInt>().getValue().getValue().getExtValue();
+            std::cout << "Total Bytes Passed: " << val << "\n";
+            std::cout << "Non Loc Kind\n";
+         } break;
+         case SVal::LocKind:
+         {
+            std::cout << "Loc Kind\n";
+            // s_val = s.getAs<nonloc::ConcreteInt>().getValue();
+            // val = s.getAs<nonloc::ConcreteInt>().getValue().getValue().getExtValue();
+            std::cout << "Loc Kind\n";
+         } break;
+         default: std::cout << "Some other kind\n";
+         
+    }
+} else {
+  std::cout << "S Val unknown or not constant";
+}
+
+SVal s2 = Call.getReturnValue ();
+    // const llvm::APSInt& s_val;
+    int64_t val2 = 0; // Will hold value of SVal
+
+if (!s2.isUnknownOrUndef() && s2.isConstant()) {
+    switch (s2.getBaseKind()) {
+        case SVal::NonLocKind: {
+            std::cout << "Non Loc Kind\n";
+            // s_val = s.getAs<nonloc::ConcreteInt>().getValue();
+            val2 = s2.getAs<nonloc::ConcreteInt>().getValue().getValue().getExtValue();
+            std::cout << "Total Bytes Passed: " << val2 << "\n";
+            std::cout << "Non Loc Kind\n";
+         } break;
+         case SVal::LocKind:
+         {
+            std::cout << "Loc Kind\n";
+            // s_val = s.getAs<nonloc::ConcreteInt>().getValue();
+            // val = s.getAs<nonloc::ConcreteInt>().getValue().getValue().getExtValue();
+            std::cout << "Loc Kind\n";
+         } break;
+         default: std::cout << "Some other kind\n";
+         
+    }
+} else {
+  //This condition is the one to execute
+  std::cout << "S Val unknown or not constant";
+}
+
+
+  }
+
     // add unitilized variables to unitilized list
     State = Properties::addToUnintializedList(State, allocatedVariable);
     // mark is synchronized by default
@@ -262,6 +371,8 @@ Handler PGASChecker::getDefaultHandler(Routine routineType) const {
     return iterator->second;
   }
 
+  std::cout << "Null Handler :P \n";
+
   return (Handler)NULL;
 }
 
@@ -325,6 +436,9 @@ void PGASChecker::checkPostCall(const CallEvent &Call,
 
   // invoke the event handler to figure out the right implementation
   eventHandler(POST_CALL, routineName, Call, C);
+
+  std::cout << "PostCall " << routineName << ":\n ";
+  // printTrackedVariables(C);
 }
 // pre call callback
 void PGASChecker::checkPreCall(const CallEvent &Call, CheckerContext &C) const {
@@ -338,4 +452,22 @@ void PGASChecker::checkPreCall(const CallEvent &Call, CheckerContext &C) const {
   std::string routineName = FD->getNameInfo().getAsString();
 
   eventHandler(PRE_CALL, routineName, Call, C);
+
+  std::cout << "PreCall " << routineName << ":\n ";
+  // printTrackedVariables(C);
+}
+
+bool PGASChecker::wantsRegionChangeUpdate(ProgramStateRef State) const {
+    return true;
+}
+
+ProgramStateRef PGASChecker::checkRegionChanges(ProgramStateRef State,
+                       const InvalidatedSymbols *Invalidated,
+                       ArrayRef<const MemRegion *> ExplicitRegions,
+                       ArrayRef<const MemRegion *> Regions,
+                       const LocationContext*  LCtx,
+                       const CallEvent *Call) const {
+    
+    // std::cout << ErrorMessages::ACCESS_ARRAY_VARIABLE;
+    return State;
 }
