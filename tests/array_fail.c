@@ -12,7 +12,10 @@ int main(int argc, char *argv[])
     int pe = 2;    
 
     shmem_put(&dest[3],&source[2],1,pe);	
-    
+
+
+    // void *alias = &dest[2];
+
     // notice the barrier has been removed from all_is_well.c
     // boom! access to unsynchronized dest
     shmem_get(&dest[3],&source[2],1,pe);
@@ -21,3 +24,9 @@ int main(int argc, char *argv[])
     free(source);
     return 0;
 }
+
+// TODO: Check if Clang static analyzer have aliasing information
+//TODO: Global and static
+
+
+// If not available, assume everything is restricted (Don't think about aliasing now)

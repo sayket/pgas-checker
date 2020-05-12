@@ -8,26 +8,6 @@ defaultHandlers defaults;
 routineHandlers handlers;
 std::unique_ptr<BuiltinBug> BT;
 
-void printTrackedVariables(CheckerContext &C){
-
-  ProgramStateRef State = C.getState();
-  auto trackedVariables = State->get<CheckerState>();
-
-  for (PGASMapImpl::iterator I = trackedVariables.begin(),
-                               E = trackedVariables.end();
-         I != E; ++I) {
-      SymbolRef symmetricVariable = I->first;
-      std::cout << symmetricVariable->getKind() << ",";
-    }
-    std::cout << "\n";
-}
-
-// Sval getMemorySize(CheckerContext &C, const CallEvent &Call){
-
-//   SValBuilder &SB = C.getSValBuilder();
-
-// }
-
 // Sample Bug Report
 // void reportUnsynchronizedAccess(
 //   const CallEvent &Call, CheckerContext &C) {
@@ -43,6 +23,37 @@ void printTrackedVariables(CheckerContext &C){
 //   auto R = llvm::make_unique<BugReport>(*BT, BT->getDescription(),
 //   errorNode); R->addRange(Call.getSourceRange()); C.emitReport(std::move(R));
 // }
+
+int64_t getIntegerValueForArgument(const CallEvent &Call,
+                                              CheckerContext &C, int argIndex){
+  SVal s = C.getSVal(Call.getArgExpr(argIndex));
+    // const llvm::APSInt& s_val;
+    int64_t val = 0; // Will hold value of SVal
+
+  if (!s.isUnknownOrUndef() && s.isConstant()) {
+    switch (s.getBaseKind()) {
+        case SVal::NonLocKind: {
+            // std::cout << "Non Loc Kind\n";
+            val = s.getAs<nonloc::ConcreteInt>().getValue().getValue().getExtValue();
+            std::cout << "Total Bytes Passed: " << val << "\n";
+            // std::cout << "Non Loc Kind\n";
+         } break;
+         case SVal::LocKind:
+         {
+            // std::cout << "Loc Kind\n";
+            val = s.getAs<loc::ConcreteInt>().getValue().getValue().getExtValue();
+            // std::cout << "Loc Kind\n";
+         } break;
+         default: std::cout << "Some other kind\n";
+         
+    }
+  } else {
+    std::cout << "S Val unknown or not constant";
+  }
+
+  return val;  
+}
+
 
 /**
  * @brief Invoked on allocation of symmetric variable
@@ -74,84 +85,18 @@ void DefaultHandlers::handleMemoryAllocations(int handler,
     const MemRegion* ptrRegion = Call.getReturnValue().getAsRegion();
     if(!ptrRegion){
       std::cout << "Get As Region Failed\n";
+      return;
+    } else {
+    // const Type* ptr = allocatedVariable->getType().getTypePtr();
+
+    //TODO: Calculate the size of each element of the region
+    // std::cout << "Size per element: " << sizeof(*ptr); 
+
+
+
+    int64_t result = getIntegerValueForArgument(Call, C, 0); // TODO: Don't hardcode argIndex, calculate from backwards
+    std::cout << "Resultant number of bytes allocated: " << result;
     }
-  else {
-    std::cout << "Get As Region Passed\n";
-    ptrRegion = ptrRegion->StripCasts();
-    const Type* ptr = allocatedVariable->getType().getTypePtr();
-    bool res = ptr->isVoidPointerType();
-
-    std::cout << "Void Pointer:" << res << "\n";
-
-    // Optional<llvm::APSInt> num_bytes = Call.getArgSVal(0).getAs<loc::APSInt>();
-    // if(num_bytes){
-    //   std::cout << (num_bytes->getValue()).getExtValue();
-    // } else {
-    //   std::cout << "Invalid Conversion\n";
-    // }
-
-    // Aim - to get the number of bytes passed
-    // Attempt1
-
-
-
-    SVal s = Call.getArgSVal(0);
-    // const llvm::APSInt& s_val;
-    int64_t val = 0; // Will hold value of SVal
-
-if (!s.isUnknownOrUndef() && s.isConstant()) {
-    switch (s.getBaseKind()) {
-        case SVal::NonLocKind: {
-            std::cout << "Non Loc Kind\n";
-            // s_val = s.getAs<nonloc::ConcreteInt>().getValue();
-            val = s.getAs<nonloc::ConcreteInt>().getValue().getValue().getExtValue();
-            std::cout << "Total Bytes Passed: " << val << "\n";
-            std::cout << "Non Loc Kind\n";
-         } break;
-         case SVal::LocKind:
-         {
-            std::cout << "Loc Kind\n";
-            // s_val = s.getAs<nonloc::ConcreteInt>().getValue();
-            // val = s.getAs<nonloc::ConcreteInt>().getValue().getValue().getExtValue();
-            std::cout << "Loc Kind\n";
-         } break;
-         default: std::cout << "Some other kind\n";
-         
-    }
-} else {
-  std::cout << "S Val unknown or not constant";
-}
-
-SVal s2 = Call.getReturnValue ();
-    // const llvm::APSInt& s_val;
-    int64_t val2 = 0; // Will hold value of SVal
-
-if (!s2.isUnknownOrUndef() && s2.isConstant()) {
-    switch (s2.getBaseKind()) {
-        case SVal::NonLocKind: {
-            std::cout << "Non Loc Kind\n";
-            // s_val = s.getAs<nonloc::ConcreteInt>().getValue();
-            val2 = s2.getAs<nonloc::ConcreteInt>().getValue().getValue().getExtValue();
-            std::cout << "Total Bytes Passed: " << val2 << "\n";
-            std::cout << "Non Loc Kind\n";
-         } break;
-         case SVal::LocKind:
-         {
-            std::cout << "Loc Kind\n";
-            // s_val = s.getAs<nonloc::ConcreteInt>().getValue();
-            // val = s.getAs<nonloc::ConcreteInt>().getValue().getValue().getExtValue();
-            std::cout << "Loc Kind\n";
-         } break;
-         default: std::cout << "Some other kind\n";
-         
-    }
-} else {
-  //This condition is the one to execute
-  std::cout << "S Val unknown or not constant";
-}
-
-
-  }
 
     // add unitilized variables to unitilized list
     State = Properties::addToUnintializedList(State, allocatedVariable);
@@ -162,7 +107,10 @@ if (!s2.isUnknownOrUndef() && s2.isConstant()) {
     // update the program state graph;
     // every time we make a change to the program state we need to invoke the
     // transform state
+    State = Properties::addToArrayList(State, ptrRegion);
     Properties::transformState(C, State);
+
+
     break;
   }
 }
@@ -196,6 +144,21 @@ void DefaultHandlers::handleBarriers(int handler, const CallEvent &Call,
       // important to invoke this each time/each variable
       Properties::transformState(C, State);
     }
+
+    RegionTrackerTy trMap = State->get<RegionTracker>();    
+
+    for (RegionTrackerTy::iterator I = trMap.begin(),
+                               E = trMap.end();
+         I != E; ++I) {
+      const MemRegion* arrayBasePtr = I->first;
+      // reset all trackers
+      TrackingClass trackingClass;
+      State = State->set<RegionTracker>(arrayBasePtr, trackingClass);
+      // important to invoke this each time/each variable
+      Properties::transformState(C, State);
+    }
+
+
     break;
   }
 }
@@ -211,12 +174,50 @@ void DefaultHandlers::handleNonBlockingWrites(int handler,
                                               const CallEvent &Call,
                                               CheckerContext &C) {
   ProgramStateRef State = C.getState();
+  
   SymbolRef destVariable = Call.getArgSVal(0).getAsSymbol();
 
-  if (!destVariable) {
-    return;
-  }
+  // const Expr* argExpr = Call.getArgExpr(0);
+  // const auto *subExpr = dyn_cast<ArraySubscriptExpr>(argExpr);
 
+  const MemRegion *const MR =
+      Call.getArgSVal(0).getAsRegion();
+
+
+  
+  // if (!MR){
+  //   std::cout << "Not a mem region\n";
+  // } else {
+  //   std::cout << "Its a mem region\n";
+  // }
+
+  const ElementRegion *const ER = dyn_cast<ElementRegion>(MR);
+
+  if (!ER){
+    std::cout << "Not an element region\n";
+  } else {
+
+    int64_t index = ER->getAsArrayOffset().getOffset().getQuantity();
+    
+    int64_t num_elements = getIntegerValueForArgument(Call,C,2);
+    
+    const MemRegion* parentRegion = ER->getSuperRegion();
+    // const MemRegion* parentRegion = ER->getBaseRegion();
+    
+    // std::cout << "Write Region:" << ER->getDescriptiveName() << "\n";
+    // const Type* typeOfElement = (ER->getElementType()).getTypePtr();
+
+    // int64_t numBytesPerElement = sizeof(*typeOfElement);
+    // std::cout << "Num of bytes per element: " << numBytesPerElement;
+
+    State = Properties::taintArray(State, parentRegion, index, index+num_elements);
+    std::cout << "After Tainting\n";
+    Properties::printTheMap(State);
+    Properties::transformState(C, State);
+    std::cout << "After Transform State\n";
+    Properties::printTheMap(State);
+  }
+  
   switch (handler) {
   case PRE_CALL:
   {
@@ -229,6 +230,7 @@ void DefaultHandlers::handleNonBlockingWrites(int handler,
       //do something useful with this
     }
     */
+      // std::cout << "Pre Call is called\n";
       const RefState *SS = State->get<CheckerState>(destVariable);
 
       if (!SS) {
@@ -236,9 +238,15 @@ void DefaultHandlers::handleNonBlockingWrites(int handler,
         std::cout << ErrorMessages::VARIABLE_NOT_SYMMETRIC;
         return;
     }
+
+
+
+
+
   }
     break;
   case POST_CALL:
+    // std::cout << "Post Call is called\n";
     // remove the unintialized variables
     State = Properties::removeFromUnitializedList(State, destVariable);
     // mark as unsynchronized
@@ -246,6 +254,8 @@ void DefaultHandlers::handleNonBlockingWrites(int handler,
     Properties::transformState(C, State);
     break;
   }
+
+  // std::cout << "Handle Non-Blocking Write end\n";
 }
 
 /**
@@ -278,6 +288,46 @@ void DefaultHandlers::handleReads(int handler, const CallEvent &Call,
   ProgramStateRef State = C.getState();
   SymbolRef symmetricVariable = Call.getArgSVal(0).getAsSymbol();
   const RefState *SS = State->get<CheckerState>(symmetricVariable);
+  if(!symmetricVariable){
+    const MemRegion *const MR =
+      Call.getArgSVal(0).getAsRegion();
+
+
+  
+  // if (!MR){
+  //   std::cout << "Not a mem region\n";
+  // } else {
+  //   std::cout << "Its a mem region\n";
+  // }
+
+  const ElementRegion *const ER = dyn_cast<ElementRegion>(MR);
+
+  if (!ER){
+    std::cout << "Not an element region\n";
+  } else {
+
+    // std::cout << "Its an element region\n";
+    int64_t index = ER->getAsArrayOffset().getOffset().getQuantity();
+    // std::cout << "Array Index:" << index << "\n";
+
+    int64_t num_elements = getIntegerValueForArgument(Call,C,2);
+    // std::cout << "Num Elements: " << num_elements;
+
+    const MemRegion* parentRegion = ER->getSuperRegion();
+    // const MemRegion* parentRegion = ER->getBaseRegion();
+    // const Type* typeOfElement = (ER->getElementType()).getTypePtr();
+
+    // int64_t numBytesPerElement = sizeof(*typeOfElement);
+    // std::cout << "Num of bytes per element: " << numBytesPerElement;
+
+    Properties::printTheMap(State);
+
+    std::cout << "Read Region:" << ER->getDescriptiveName() << "\n";
+
+    bool result = Properties::checkTrackerRange(State, parentRegion, index, index+num_elements);
+    std::cout << "*************************** The Read is " << ((result)?"Safe\n":"Unsafe\n");
+  }
+  }
 
   switch (handler) {
 
@@ -437,7 +487,7 @@ void PGASChecker::checkPostCall(const CallEvent &Call,
   // invoke the event handler to figure out the right implementation
   eventHandler(POST_CALL, routineName, Call, C);
 
-  std::cout << "PostCall " << routineName << ":\n ";
+  // std::cout << "PostCall " << routineName << ":\n ";
   // printTrackedVariables(C);
 }
 // pre call callback
@@ -453,12 +503,12 @@ void PGASChecker::checkPreCall(const CallEvent &Call, CheckerContext &C) const {
 
   eventHandler(PRE_CALL, routineName, Call, C);
 
-  std::cout << "PreCall " << routineName << ":\n ";
+  // std::cout << "PreCall " << routineName << ":\n ";
   // printTrackedVariables(C);
 }
 
 bool PGASChecker::wantsRegionChangeUpdate(ProgramStateRef State) const {
-    return true;
+    return false; // We don't need it right now so disabling it
 }
 
 ProgramStateRef PGASChecker::checkRegionChanges(ProgramStateRef State,

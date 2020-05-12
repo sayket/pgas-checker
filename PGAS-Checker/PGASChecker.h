@@ -11,6 +11,9 @@
 #include <iostream>
 #include <unordered_map>
 #include <utility>
+#include <bits/stdc++.h>
+
+#define BITSET_SIZE 20
 
 using namespace clang;
 using namespace ento;
@@ -30,6 +33,8 @@ typedef enum routines {
 
 // ( non_blocking_routine_type, event_handler  )
 typedef std::pair<Routine, Handler> Pair;
+
+typedef std::bitset<BITSET_SIZE> Tracker; 
 
 // hold the mapping between routine name of a specific pgas programming model
 // routine, routine type and the event handler
@@ -73,6 +78,10 @@ typedef llvm::ImmutableMap<SymbolRef, RefState> PGASMapImpl;
 // the program(via *_malloc type routines)
 typedef llvm::ImmutableSet<SymbolRef> PGASSetImpl;
 
+
+typedef llvm::ImmutableSet<MemRegion*> PGASMemRegionsImpl;
+// typedef llvm::ImmutableMap<MemRegion*, Tracker> PGASMemRegionMap;
+
 // the following lines enables the developer to declare a custom immutable map
 // with custom keys and value; for instance declaring a map using the
 // REGISTER_MAP_WITH_PROGRAMSTATE macro allows you to only have SymbolRef as the
@@ -89,6 +98,28 @@ struct ProgramStateTrait<CheckerState>
     static int index = 0;
     return &index;
   }
+};
+
+class TrackingClass {
+
+private:
+
+public:
+  Tracker t1;
+  void Profile(llvm::FoldingSetNodeID &ID) const { ID.AddInteger(t1.to_ulong()); }
+  void updateTracker(int64_t startIndex, int64_t endIndex) {
+    for(int i = startIndex; i < endIndex; i++){
+        t1.set(i);
+      }
+  }
+  bool isRangeEmpty(int64_t startIndex, int64_t endIndex) const{
+    bool flag = false;
+    for(int64_t i = startIndex; i < endIndex; i++){
+      flag = (flag)|t1[i];
+    }
+    return (!flag);
+  }
+  bool operator==(const TrackingClass &X) const { return t1 == X.t1; }
 };
 
 // Declaration of the Base Checker
@@ -117,9 +148,13 @@ public:
 }
 // set of unitilized variables;
 // llvm immutable set of type PGASSetImpl
-REGISTER_TRAIT_WITH_PROGRAMSTATE(UnintializedVariables, PGASSetImpl)
+REGISTER_TRAIT_WITH_PROGRAMSTATE(UnintializedVariables, PGASSetImpl) //Like a path-sensitive map and very performant
 // // set of freed variables
 REGISTER_TRAIT_WITH_PROGRAMSTATE(FreedVariables, PGASSetImpl)
+// // set of array regions
+REGISTER_TRAIT_WITH_PROGRAMSTATE(ArrayRegions, PGASMemRegionsImpl)
+//map of tracked indices
+REGISTER_MAP_WITH_PROGRAMSTATE(RegionTracker, const MemRegion*, TrackingClass) 
 
 enum HANDLERS { PRE_CALL = 0, POST_CALL = 1 };
 
@@ -171,6 +206,10 @@ ProgramStateRef addToUnintializedList(ProgramStateRef State,
 ProgramStateRef removeFromState(ProgramStateRef State, SymbolRef variable);
 ProgramStateRef markAsUnsynchronized(ProgramStateRef State, SymbolRef variable);
 ProgramStateRef markAsSynchronized(ProgramStateRef State, SymbolRef variable);
+ProgramStateRef addToArrayList(ProgramStateRef State, const MemRegion* arrayRegion);
+ProgramStateRef taintArray(ProgramStateRef State, const MemRegion* arrayRegion, int64_t startIndex, int64_t endIndex);
+bool checkTrackerRange(ProgramStateRef State, const MemRegion* arrayRegion, int64_t startIndex, int64_t endIndex);
+void printTheMap(ProgramStateRef State);
 } // namespace Properties
 
 
