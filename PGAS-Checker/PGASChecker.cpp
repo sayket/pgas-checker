@@ -35,7 +35,7 @@ int64_t getIntegerValueForArgument(const CallEvent &Call,
         case SVal::NonLocKind: {
             // std::cout << "Non Loc Kind\n";
             val = s.getAs<nonloc::ConcreteInt>().getValue().getValue().getExtValue();
-            std::cout << "Total Bytes Passed: " << val << "\n";
+            // std::cout << "Total Bytes Passed: " << val << "\n";
             // std::cout << "Non Loc Kind\n";
          } break;
          case SVal::LocKind:
@@ -87,15 +87,7 @@ void DefaultHandlers::handleMemoryAllocations(int handler,
       std::cout << "Get As Region Failed\n";
       return;
     } else {
-    // const Type* ptr = allocatedVariable->getType().getTypePtr();
-
-    //TODO: Calculate the size of each element of the region
-    // std::cout << "Size per element: " << sizeof(*ptr); 
-
-
-
-    int64_t result = getIntegerValueForArgument(Call, C, 0); // TODO: Don't hardcode argIndex, calculate from backwards
-    std::cout << "Resultant number of bytes allocated: " << result;
+        int64_t result = getIntegerValueForArgument(Call, C, 0); // TODO: Don't hardcode argIndex, calculate from backwards
     }
 
     // add unitilized variables to unitilized list
@@ -135,9 +127,13 @@ void DefaultHandlers::handleBarriers(int handler, const CallEvent &Call,
   case POST_CALL:
     // iterate through all the track variables so far variables
     // set each of the values to synchronized
+    std::cout << "Barrier-1\n";
+
     for (PGASMapImpl::iterator I = trackedVariables.begin(),
                                E = trackedVariables.end();
          I != E; ++I) {
+      std::cout << "Barrier-Y\n";
+
       SymbolRef symmetricVariable = I->first;
       // mark all symmetric variables as synchronized
       State = Properties::markAsSynchronized(State, symmetricVariable);
@@ -145,19 +141,37 @@ void DefaultHandlers::handleBarriers(int handler, const CallEvent &Call,
       Properties::transformState(C, State);
     }
 
-    RegionTrackerTy trMap = State->get<RegionTracker>();    
+    // std::cout << "Barrier-2\n";
 
-    for (RegionTrackerTy::iterator I = trMap.begin(),
-                               E = trMap.end();
-         I != E; ++I) {
-      const MemRegion* arrayBasePtr = I->first;
+    // RegionTrackerTy trMap = State->get<RegionTracker>();    
+
+    // for (RegionTrackerTy::iterator I = trMap.begin(),
+    //                            E = trMap.end();
+    //      I != E; ++I) {
+
+    //   std::cout << "Barrier-X\n";
+
+    //   const MemRegion* arrayBasePtr = I->first;
+    //   // reset all trackers
+    //   TrackingClass trackingClass;
+    //   State = State->set<RegionTracker>(arrayBasePtr, trackingClass);
+    //   // important to invoke this each time/each variable
+    //   Properties::transformState(C, State);
+    // }
+
+    llvm::ImmutableMap<const clang::ento::MemRegion*, clang::ento::TrackingClass> map = State->get<RegionTracker>();
+    for(llvm::ImmutableMap<const clang::ento::MemRegion*, clang::ento::TrackingClass>::iterator i = map.begin(); i != map.end(); i++){
+      std::cout << "Barrier-X\n";
+
+      const MemRegion* arrayBasePtr = i->first;
       // reset all trackers
       TrackingClass trackingClass;
+      State = State->remove<RegionTracker>(arrayBasePtr);
       State = State->set<RegionTracker>(arrayBasePtr, trackingClass);
-      // important to invoke this each time/each variable
       Properties::transformState(C, State);
     }
 
+    std::cout << "Barrier-3\n";
 
     break;
   }
@@ -177,61 +191,64 @@ void DefaultHandlers::handleNonBlockingWrites(int handler,
   
   SymbolRef destVariable = Call.getArgSVal(0).getAsSymbol();
 
-  // const Expr* argExpr = Call.getArgExpr(0);
-  // const auto *subExpr = dyn_cast<ArraySubscriptExpr>(argExpr);
+  const MemRegion* MR = Call.getArgSVal(0).getAsRegion();
+  if(!MR) {
+    std::cout << "Failed while getting the Memory Region. Returning!!";
+    return;
+  }
 
-  const MemRegion *const MR =
-      Call.getArgSVal(0).getAsRegion();
+  std::cout << "Has Globals Storage " << MR->hasGlobalsOrParametersStorage() << "\n";
 
 
-  
-  // if (!MR){
-  //   std::cout << "Not a mem region\n";
-  // } else {
-  //   std::cout << "Its a mem region\n";
+  // if(isa<MemSpaceRegion>(MR)){
+  //     std::cout << "Its a Memory Space Region\n";
   // }
 
-  const ElementRegion *const ER = dyn_cast<ElementRegion>(MR);
+  // if(isa<SubRegion>(MR)){
+  //     std::cout << "Its a Sub Region\n";
+  // }
 
+  // const MemRegion* BR = MR->getBaseRegion();
+
+  // std::cout << "BR : Has Globals Storage " << BR->hasGlobalsOrParametersStorage() << "\n";
+
+
+  // if(isa<MemSpaceRegion>(BR)){
+  //     std::cout << "BR : Its a Memory Space Region\n";
+  // }
+
+  // if(isa<SubRegion>(BR)){
+  //     std::cout << "BR : Its a Sub Region\n";
+  // }
+
+  const ElementRegion *ER = dyn_cast<ElementRegion>(MR);
   if (!ER){
-    std::cout << "Not an element region\n";
-  } else {
-
-    int64_t index = ER->getAsArrayOffset().getOffset().getQuantity();
-    
-    int64_t num_elements = getIntegerValueForArgument(Call,C,2);
-    
-    const MemRegion* parentRegion = ER->getSuperRegion();
-    // const MemRegion* parentRegion = ER->getBaseRegion();
-    
-    // std::cout << "Write Region:" << ER->getDescriptiveName() << "\n";
-    // const Type* typeOfElement = (ER->getElementType()).getTypePtr();
-
-    // int64_t numBytesPerElement = sizeof(*typeOfElement);
-    // std::cout << "Num of bytes per element: " << numBytesPerElement;
-
-    State = Properties::taintArray(State, parentRegion, index, index+num_elements);
-    std::cout << "After Tainting\n";
-    Properties::printTheMap(State);
-    Properties::transformState(C, State);
-    std::cout << "After Transform State\n";
-    Properties::printTheMap(State);
+    std::cout << "Failed while casting into the Element Region. Returning!!";
+    return;
   }
-  
+
   switch (handler) {
   case PRE_CALL:
   {
-    /*
-    to retrieve all all arguments of the invoked it you could something like
-    int argCount =  Call.getNumArgs();
-    for(int argIndex=0; argIndex < argCount; argIndex++) {
-      SVal argument = Call.getArgSVal(argIndex);
-      SymbolRef ref = argument.getAsSymbol();
-      //do something useful with this
+
+    DefinedOrUnknownSVal Idx = ER->getIndex().castAs<DefinedOrUnknownSVal>();
+    if(Idx.isConstant()){
+      // std::cout << "constant\n";
+      const int64_t val1 = Idx.castAs<nonloc::ConcreteInt>().getValue().getExtValue();
+
+      std::cout << val1 << "-----\n";
+
+    } else {
+      std::cout << "not constant\n";
     }
-    */
-      // std::cout << "Pre Call is called\n";
-      const RefState *SS = State->get<CheckerState>(destVariable);
+
+    if(MR->hasGlobalsOrParametersStorage()){  //Also, use for static storage
+        State = Properties::addToArrayList(State, ER->getSuperRegion());
+        Properties::transformState(C, State);
+    }
+
+
+    const RefState *SS = State->get<CheckerState>(destVariable);
 
       if (!SS) {
       // TODOS: replace couts with bug reports
@@ -239,18 +256,46 @@ void DefaultHandlers::handleNonBlockingWrites(int handler,
         return;
     }
 
-
-
-
-
   }
     break;
   case POST_CALL:
-    // std::cout << "Post Call is called\n";
     // remove the unintialized variables
     State = Properties::removeFromUnitializedList(State, destVariable);
     // mark as unsynchronized
     State = Properties::markAsUnsynchronized(State, destVariable);
+
+    if (!ER){
+      std::cout << "Not an element region\n";
+    } else {
+
+      // Get the array index 
+      DefinedOrUnknownSVal Idx = ER->getIndex().castAs<DefinedOrUnknownSVal>();
+      const int64_t index = Idx.castAs<nonloc::ConcreteInt>().getValue().getExtValue();
+      // if(Idx.isConstant()){
+      //   std::cout << "constant\n";
+      //   const int64_t val1 = Idx.castAs<nonloc::ConcreteInt>().getValue().getExtValue();
+
+      //   std::cout << val1 << "-----\n";
+
+      // } else {
+      //   std::cout << "not constant\n";
+      // }      
+      // Get the number of elements being tainted
+      int64_t num_elements = getIntegerValueForArgument(Call,C,2);
+      int64_t nodeIndex = getIntegerValueForArgument(Call,C,3);
+
+      std::cout << "Index: " << index << ", Num: " << num_elements << "\n";
+    
+      const MemRegion* parentRegion = ER->getSuperRegion();
+      // const MemRegion* parentRegion = ER->getBaseRegion();
+    
+      State = Properties::taintArray(State, parentRegion, index, index+num_elements, nodeIndex);
+      std::cout << "After Tainting\n";
+      // Properties::printTheMap(State);
+      Properties::transformState(C, State);
+    // Properties::printTheMap(State);
+    }
+
     Properties::transformState(C, State);
     break;
   }
@@ -288,47 +333,11 @@ void DefaultHandlers::handleReads(int handler, const CallEvent &Call,
   ProgramStateRef State = C.getState();
   SymbolRef symmetricVariable = Call.getArgSVal(0).getAsSymbol();
   const RefState *SS = State->get<CheckerState>(symmetricVariable);
-  if(!symmetricVariable){
-    const MemRegion *const MR =
-      Call.getArgSVal(0).getAsRegion();
+  const MemRegion *const MR = Call.getArgSVal(0).getAsRegion();
+  const ElementRegion *const ER = dyn_cast<ElementRegion>(MR);
 
 
   
-  // if (!MR){
-  //   std::cout << "Not a mem region\n";
-  // } else {
-  //   std::cout << "Its a mem region\n";
-  // }
-
-  const ElementRegion *const ER = dyn_cast<ElementRegion>(MR);
-
-  if (!ER){
-    std::cout << "Not an element region\n";
-  } else {
-
-    // std::cout << "Its an element region\n";
-    int64_t index = ER->getAsArrayOffset().getOffset().getQuantity();
-    // std::cout << "Array Index:" << index << "\n";
-
-    int64_t num_elements = getIntegerValueForArgument(Call,C,2);
-    // std::cout << "Num Elements: " << num_elements;
-
-    const MemRegion* parentRegion = ER->getSuperRegion();
-    // const MemRegion* parentRegion = ER->getBaseRegion();
-    // const Type* typeOfElement = (ER->getElementType()).getTypePtr();
-
-    // int64_t numBytesPerElement = sizeof(*typeOfElement);
-    // std::cout << "Num of bytes per element: " << numBytesPerElement;
-
-    Properties::printTheMap(State);
-
-    std::cout << "Read Region:" << ER->getDescriptiveName() << "\n";
-
-    bool result = Properties::checkTrackerRange(State, parentRegion, index, index+num_elements);
-    std::cout << "*************************** The Read is " << ((result)?"Safe\n":"Unsafe\n");
-  }
-  }
-
   switch (handler) {
 
   case PRE_CALL:
@@ -350,6 +359,24 @@ void DefaultHandlers::handleReads(int handler, const CallEvent &Call,
     break;
 
   case POST_CALL:
+
+    if (!ER){
+      std::cout << "Not an element region\n";
+    } else {
+
+    DefinedOrUnknownSVal Idx = ER->getIndex().castAs<DefinedOrUnknownSVal>();
+    const int64_t index = Idx.castAs<nonloc::ConcreteInt>().getValue().getExtValue();
+    
+    int64_t num_elements = getIntegerValueForArgument(Call,C,2);
+    int64_t nodeIndex = getIntegerValueForArgument(Call,C,3);
+    
+    const MemRegion* parentRegion = ER->getSuperRegion();
+    // Properties::printTheMap(State);
+
+    bool result = Properties::checkTrackerRange(State, parentRegion, index, index+num_elements, nodeIndex);
+    std::cout << "\n*************************** The Read is " << ((result)?"Safe\n":"Unsafe\n");
+  }
+
     break;
   }
 }
@@ -483,11 +510,12 @@ void PGASChecker::checkPostCall(const CallEvent &Call,
 
   // get the invoked routine name
   std::string routineName = FD->getNameInfo().getAsString();
-
+  
+  // std::cout << "PostCall " << routineName << ":\n ";
+  
   // invoke the event handler to figure out the right implementation
   eventHandler(POST_CALL, routineName, Call, C);
 
-  // std::cout << "PostCall " << routineName << ":\n ";
   // printTrackedVariables(C);
 }
 // pre call callback
@@ -501,23 +529,22 @@ void PGASChecker::checkPreCall(const CallEvent &Call, CheckerContext &C) const {
   // get the name of the invoked routine
   std::string routineName = FD->getNameInfo().getAsString();
 
+  // std::cout << "PreCall " << routineName << ":\n ";
+  
   eventHandler(PRE_CALL, routineName, Call, C);
 
-  // std::cout << "PreCall " << routineName << ":\n ";
-  // printTrackedVariables(C);
 }
 
-bool PGASChecker::wantsRegionChangeUpdate(ProgramStateRef State) const {
-    return false; // We don't need it right now so disabling it
-}
+void PGASChecker::checkLocation(SVal Loc, bool IsLoad, const Stmt *S,
+                      CheckerContext &C) const {
 
-ProgramStateRef PGASChecker::checkRegionChanges(ProgramStateRef State,
-                       const InvalidatedSymbols *Invalidated,
-                       ArrayRef<const MemRegion *> ExplicitRegions,
-                       ArrayRef<const MemRegion *> Regions,
-                       const LocationContext*  LCtx,
-                       const CallEvent *Call) const {
-    
-    // std::cout << ErrorMessages::ACCESS_ARRAY_VARIABLE;
-    return State;
+  // ProgramStateRef State = C.getState();
+  // const MemRegion *R = Loc.getAsRegion();
+  //   if (!R) return;
+  //   if(isa<GlobalsSpaceRegion>(R)){
+  //       std::cout << "Global Storage " << Properties::regionExistsInMap(State, R) << "\n";
+  //   } else {
+  //       std::cout << "Local Storage " << Properties::regionExistsInMap(State, R) << "\n";
+  //   }
+
 }

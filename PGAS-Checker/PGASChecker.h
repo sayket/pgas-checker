@@ -13,7 +13,7 @@
 #include <utility>
 #include <bits/stdc++.h>
 
-#define BITSET_SIZE 20
+#define BITSET_SIZE 25
 
 using namespace clang;
 using namespace ento;
@@ -105,25 +105,36 @@ class TrackingClass {
 private:
 
 public:
-  Tracker t1;
-  void Profile(llvm::FoldingSetNodeID &ID) const { ID.AddInteger(t1.to_ulong()); }
-  void updateTracker(int64_t startIndex, int64_t endIndex) {
+  std::map<int, Tracker> trackingMap;
+  Tracker tracker;
+  void Profile(llvm::FoldingSetNodeID &ID) const { ID.AddInteger(tracker.to_ulong()); }
+  void updateTracker(int64_t startIndex, int64_t endIndex, int64_t nodeId) {
+    Tracker t1;
+    if(trackingMap.find(nodeId) != trackingMap.end()){
+     t1 = trackingMap.at(nodeId);
+    }
     for(int i = startIndex; i < endIndex; i++){
         t1.set(i);
-      }
+    }
+    trackingMap[nodeId] = t1;
   }
-  bool isRangeEmpty(int64_t startIndex, int64_t endIndex) const{
+  bool isRangeEmpty(int64_t startIndex, int64_t endIndex, int64_t nodeId) const{
     bool flag = false;
+    if(trackingMap.find(nodeId) == trackingMap.end()){
+     return true;
+    }
+    Tracker t1 = trackingMap.at(nodeId);
+    std::cout << "Original tracker: " << t1 << "\n";
     for(int64_t i = startIndex; i < endIndex; i++){
       flag = (flag)|t1[i];
     }
     return (!flag);
   }
-  bool operator==(const TrackingClass &X) const { return t1 == X.t1; }
+  bool operator==(const TrackingClass &X) const { return trackingMap == X.trackingMap; }
 };
 
 // Declaration of the Base Checker
-class PGASChecker : public Checker<check::PostCall, check::PreCall, check::RegionChanges> {
+class PGASChecker : public Checker<check::PostCall, check::PreCall, check::Location> {
 
 private:
   void eventHandler(int handler, std::string &routineName,
@@ -134,13 +145,8 @@ private:
 public:
   void checkPostCall(const CallEvent &Call, CheckerContext &C) const;
   void checkPreCall(const CallEvent &Call, CheckerContext &C) const;
-  bool wantsRegionChangeUpdate(ProgramStateRef St) const;
-  ProgramStateRef checkRegionChanges(ProgramStateRef State,
-                       const InvalidatedSymbols *Invalidated,
-                       ArrayRef<const MemRegion *> ExplicitRegions,
-                       ArrayRef<const MemRegion *> Regions,
-                       const LocationContext*  LCtx,
-                       const CallEvent *Call) const;
+  void checkLocation(SVal Loc, bool IsLoad, const Stmt *S,
+                      CheckerContext &C) const;
   PGASChecker(routineHandlers (*addHandlers)());
 };
 
@@ -207,9 +213,10 @@ ProgramStateRef removeFromState(ProgramStateRef State, SymbolRef variable);
 ProgramStateRef markAsUnsynchronized(ProgramStateRef State, SymbolRef variable);
 ProgramStateRef markAsSynchronized(ProgramStateRef State, SymbolRef variable);
 ProgramStateRef addToArrayList(ProgramStateRef State, const MemRegion* arrayRegion);
-ProgramStateRef taintArray(ProgramStateRef State, const MemRegion* arrayRegion, int64_t startIndex, int64_t endIndex);
-bool checkTrackerRange(ProgramStateRef State, const MemRegion* arrayRegion, int64_t startIndex, int64_t endIndex);
-void printTheMap(ProgramStateRef State);
+ProgramStateRef taintArray(ProgramStateRef State, const MemRegion* arrayRegion, int64_t startIndex, int64_t endIndex, int64_t nodeIndex);
+bool checkTrackerRange(ProgramStateRef State, const MemRegion* arrayRegion, int64_t startIndex, int64_t endIndex, int64_t nodeIndex);
+// void printTheMap(ProgramStateRef State);
+bool regionExistsInMap(ProgramStateRef State, const MemRegion* arrayRegion);
 } // namespace Properties
 
 

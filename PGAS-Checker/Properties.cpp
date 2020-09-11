@@ -117,24 +117,33 @@ ProgramStateRef Properties::addToArrayList(ProgramStateRef State,
                                           const MemRegion* arrayRegion) {
   TrackingClass t1;
   State = State->set<RegionTracker>(arrayRegion, t1);
+  std::cout << "Region added: " << arrayRegion << "\n";
+  int count = 0;
+  llvm::ImmutableMap<const clang::ento::MemRegion*, clang::ento::TrackingClass> map = State->get<RegionTracker>();
+  for(llvm::ImmutableMap<const clang::ento::MemRegion*, clang::ento::TrackingClass>::iterator i = map.begin(); i != map.end(); i++){
+    std::cout << "Incr count\n";
+    count++;
+  }
+  std::cout << "Size: " << count << "\n";
   return State;
 }
 
 ProgramStateRef Properties::taintArray(ProgramStateRef State,
-                                          const MemRegion* arrayRegion, int64_t startIndex, int64_t endIndex) {
-  if(State->contains<RegionTracker>(arrayRegion)){
+                                          const MemRegion* arrayRegion, int64_t startIndex, int64_t endIndex, int64_t nodeIndex) {
+  std::cout << "Region checking: " << arrayRegion << "\n";
+  if((State->get<RegionTracker>()).contains(arrayRegion)){
     std::cout << "This region is there\n";
     const TrackingClass *tracker = State->get<RegionTracker>(arrayRegion);
     if(tracker){
-      std::cout << "Original tracker: " << (*tracker).t1 << "\n";
+      std::cout << "Node Index: " << nodeIndex << "\n";
       TrackingClass trackingClass;
-      trackingClass.t1 = (*tracker).t1;
-      trackingClass.updateTracker(startIndex, endIndex);
-      std::cout << "New tracker: " << trackingClass.t1 << "\n";
+      trackingClass.trackingMap = (*tracker).trackingMap; 
+      trackingClass.updateTracker(startIndex, endIndex, nodeIndex);
+      // std::cout << "New tracker: " << trackingClass.t1 << "\n";
       State = State->remove<RegionTracker>(arrayRegion);
       State = State->set<RegionTracker>(arrayRegion, trackingClass);
-      const TrackingClass *tracker2 = State->get<RegionTracker>(arrayRegion);
-      std::cout << "Just to make (nc) sure: " << (*tracker2).t1 << "\n";
+      // const TrackingClass *tracker2 = State->get<RegionTracker>(arrayRegion);
+      // std::cout << "Just to make (nc) sure: " << (*tracker2).t1 << "\n";
       return State;
     } else {
       std::cout << "Can't find the tracker\n";
@@ -142,18 +151,18 @@ ProgramStateRef Properties::taintArray(ProgramStateRef State,
   } else {
     std::cout << "This region is not in list\n";    
   }
+
   return State;
 }
 
 bool Properties::checkTrackerRange(ProgramStateRef State,
-                                          const MemRegion* arrayRegion, int64_t startIndex, int64_t endIndex) {
+                                          const MemRegion* arrayRegion, int64_t startIndex, int64_t endIndex, int64_t nodeIndex) {
   if(State->contains<RegionTracker>(arrayRegion)){
     // std::cout << "This region is there\n";
     const TrackingClass *tracker = State->get<RegionTracker>(arrayRegion);
     if(tracker){
-      std::cout << "Original tracker: " << (*tracker).t1 << "\n";
-      bool flag = (*tracker).isRangeEmpty(startIndex, endIndex);
-      std::cout << "Tracker Empty: " << flag << "\n";
+      bool flag = (*tracker).isRangeEmpty(startIndex, endIndex, nodeIndex);
+      // std::cout << "Tracker Empty: " << flag << "\n";
       return flag;
     } else {
       std::cout << "Can't find the tracker\n";
@@ -164,22 +173,28 @@ bool Properties::checkTrackerRange(ProgramStateRef State,
   return false;
 }
 
-void Properties::printTheMap(ProgramStateRef State){
-      /// TEST START /////
+// void Properties::printTheMap(ProgramStateRef State){
+//       /// TEST START /////
 
-    std::cout << "Print function has started \n";
+//     std::cout << "Print function has started \n";
 
-    auto trMap = State->get<RegionTracker>();    
+//     auto trMap = State->get<RegionTracker>();    
     
-    for (RegionTrackerTy::iterator I = trMap.begin(),
-                               E = trMap.end();
-         I != E; ++I) {
-      std::cout << "Loop iterator: \n";
-      const MemRegion* arrayBasePtr = I->first;
-      // reset all trackers
-      const TrackingClass *tracker = State->get<RegionTracker>(arrayBasePtr);
-      std::cout << "tracker-iter: " << (*tracker).t1 << "\n";
-    }
-    /// TEST END /////
+//     for (RegionTrackerTy::iterator I = trMap.begin(),
+//                                E = trMap.end();
+//          I != E; ++I) {
+//       // std::cout << "Loop iterator: \n";
+//       const MemRegion* arrayBasePtr = I->first;
+//       // reset all trackers
+//       const TrackingClass *tracker = State->get<RegionTracker>(arrayBasePtr);
+//       std::cout << "tracker-iters: " << (*tracker).trackingMap << "\n";
+//     }
+//     /// TEST END /////
+// }
+
+bool Properties::regionExistsInMap(ProgramStateRef State,
+                                          const MemRegion* arrayRegion){
+  return State->contains<RegionTracker>(arrayRegion);
+
 }
 
