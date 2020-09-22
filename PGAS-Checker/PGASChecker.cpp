@@ -102,7 +102,6 @@ void DefaultHandlers::handleMemoryAllocations(int handler,
     State = Properties::addToArrayList(State, ptrRegion);
     Properties::transformState(C, State);
 
-
     break;
   }
 }
@@ -231,16 +230,16 @@ void DefaultHandlers::handleNonBlockingWrites(int handler,
   case PRE_CALL:
   {
 
-    DefinedOrUnknownSVal Idx = ER->getIndex().castAs<DefinedOrUnknownSVal>();
-    if(Idx.isConstant()){
-      // std::cout << "constant\n";
-      const int64_t val1 = Idx.castAs<nonloc::ConcreteInt>().getValue().getExtValue();
+    // DefinedOrUnknownSVal Idx = ER->getIndex().castAs<DefinedOrUnknownSVal>();
+    // if(Idx.isConstant()){
+    //   // std::cout << "constant\n";
+    //   const int64_t val1 = Idx.castAs<nonloc::ConcreteInt>().getValue().getExtValue();
 
-      std::cout << val1 << "-----\n";
+    //   std::cout << val1 << "-----\n";
 
-    } else {
-      std::cout << "not constant\n";
-    }
+    // } else {
+    //   std::cout << "not constant\n";
+    // }
 
     if(MR->hasGlobalsOrParametersStorage()){  //Also, use for static storage
         State = Properties::addToArrayList(State, ER->getSuperRegion());
@@ -270,7 +269,7 @@ void DefaultHandlers::handleNonBlockingWrites(int handler,
 
       // Get the array index 
       DefinedOrUnknownSVal Idx = ER->getIndex().castAs<DefinedOrUnknownSVal>();
-      const int64_t index = Idx.castAs<nonloc::ConcreteInt>().getValue().getExtValue();
+      // const int64_t index = Idx.castAs<nonloc::ConcreteInt>().getValue().getExtValue();
       // if(Idx.isConstant()){
       //   std::cout << "constant\n";
       //   const int64_t val1 = Idx.castAs<nonloc::ConcreteInt>().getValue().getExtValue();
@@ -281,15 +280,16 @@ void DefaultHandlers::handleNonBlockingWrites(int handler,
       //   std::cout << "not constant\n";
       // }      
       // Get the number of elements being tainted
-      int64_t num_elements = getIntegerValueForArgument(Call,C,2);
-      int64_t nodeIndex = getIntegerValueForArgument(Call,C,3);
+      SVal numElements = C.getSVal(Call.getArgExpr(2));
+      // int64_t num_elements = getIntegerValueForArgument(Call,C,2);
+      // int64_t nodeIndex = getIntegerValueForArgument(Call,C,3);
 
-      std::cout << "Index: " << index << ", Num: " << num_elements << "\n";
+      // std::cout << "Index: " << index << ", Num: " << num_elements << "\n";
     
       const MemRegion* parentRegion = ER->getSuperRegion();
       // const MemRegion* parentRegion = ER->getBaseRegion();
     
-      State = Properties::taintArray(State, parentRegion, index, index+num_elements, nodeIndex);
+      State = Properties::taintArray(State, parentRegion, Idx, numElements);
       std::cout << "After Tainting\n";
       // Properties::printTheMap(State);
       Properties::transformState(C, State);
@@ -365,15 +365,16 @@ void DefaultHandlers::handleReads(int handler, const CallEvent &Call,
     } else {
 
     DefinedOrUnknownSVal Idx = ER->getIndex().castAs<DefinedOrUnknownSVal>();
-    const int64_t index = Idx.castAs<nonloc::ConcreteInt>().getValue().getExtValue();
+    SVal num_elements = C.getSVal(Call.getArgExpr(2));
+    // const int64_t index = Idx.castAs<nonloc::ConcreteInt>().getValue().getExtValue();
     
-    int64_t num_elements = getIntegerValueForArgument(Call,C,2);
-    int64_t nodeIndex = getIntegerValueForArgument(Call,C,3);
+    // int64_t num_elements = getIntegerValueForArgument(Call,C,2);
+    // int64_t nodeIndex = getIntegerValueForArgument(Call,C,3);
     
     const MemRegion* parentRegion = ER->getSuperRegion();
     // Properties::printTheMap(State);
 
-    bool result = Properties::checkTrackerRange(State, parentRegion, index, index+num_elements, nodeIndex);
+    bool result = Properties::checkTrackerRange(C, parentRegion, Idx, num_elements);
     std::cout << "\n*************************** The Read is " << ((result)?"Safe\n":"Unsafe\n");
   }
 

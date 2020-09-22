@@ -129,16 +129,19 @@ ProgramStateRef Properties::addToArrayList(ProgramStateRef State,
 }
 
 ProgramStateRef Properties::taintArray(ProgramStateRef State,
-                                          const MemRegion* arrayRegion, int64_t startIndex, int64_t endIndex, int64_t nodeIndex) {
+                                          const MemRegion* arrayRegion, SVal startIndex, SVal numElements) {
   std::cout << "Region checking: " << arrayRegion << "\n";
   if((State->get<RegionTracker>()).contains(arrayRegion)){
     std::cout << "This region is there\n";
     const TrackingClass *tracker = State->get<RegionTracker>(arrayRegion);
     if(tracker){
-      std::cout << "Node Index: " << nodeIndex << "\n";
+      // std::cout << "Node Index: " << nodeIndex << "\n";
       TrackingClass trackingClass;
-      trackingClass.trackingMap = (*tracker).trackingMap; 
-      trackingClass.updateTracker(startIndex, endIndex, nodeIndex);
+      // trackingClass.trackingMap = (*tracker).trackingMap;
+      DefinedOrUnknownSVal startIndex2 = startIndex.castAs<DefinedOrUnknownSVal>();
+      DefinedOrUnknownSVal numElements2 = numElements.castAs<DefinedOrUnknownSVal>();
+
+      trackingClass.updateTracker(startIndex2, numElements2);
       // std::cout << "New tracker: " << trackingClass.t1 << "\n";
       State = State->remove<RegionTracker>(arrayRegion);
       State = State->set<RegionTracker>(arrayRegion, trackingClass);
@@ -155,13 +158,17 @@ ProgramStateRef Properties::taintArray(ProgramStateRef State,
   return State;
 }
 
-bool Properties::checkTrackerRange(ProgramStateRef State,
-                                          const MemRegion* arrayRegion, int64_t startIndex, int64_t endIndex, int64_t nodeIndex) {
+bool Properties::checkTrackerRange(CheckerContext &C,
+                                          const MemRegion* arrayRegion, SVal startIndex, SVal numElements) {
+  
+  ProgramStateRef State = C.getState();
   if(State->contains<RegionTracker>(arrayRegion)){
-    // std::cout << "This region is there\n";
+    std::cout << "This region is there\n";
     const TrackingClass *tracker = State->get<RegionTracker>(arrayRegion);
     if(tracker){
-      bool flag = (*tracker).isRangeEmpty(startIndex, endIndex, nodeIndex);
+      DefinedOrUnknownSVal startIndex2 = startIndex.castAs<DefinedOrUnknownSVal>();
+      DefinedOrUnknownSVal numElements2 = numElements.castAs<DefinedOrUnknownSVal>();
+      bool flag = (*tracker).isRangeEmpty(startIndex2, numElements2, C);
       // std::cout << "Tracker Empty: " << flag << "\n";
       return flag;
     } else {
@@ -171,6 +178,7 @@ bool Properties::checkTrackerRange(ProgramStateRef State,
     std::cout << "This region is not in list\n";    
   }
   return false;
+  
 }
 
 // void Properties::printTheMap(ProgramStateRef State){

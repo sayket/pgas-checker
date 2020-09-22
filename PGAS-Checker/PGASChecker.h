@@ -105,32 +105,67 @@ class TrackingClass {
 private:
 
 public:
-  std::map<int, Tracker> trackingMap;
+  std::vector<std::pair<DefinedOrUnknownSVal, DefinedOrUnknownSVal>> trackingVector;
   Tracker tracker;
+
   void Profile(llvm::FoldingSetNodeID &ID) const { ID.AddInteger(tracker.to_ulong()); }
-  void updateTracker(int64_t startIndex, int64_t endIndex, int64_t nodeId) {
-    Tracker t1;
-    if(trackingMap.find(nodeId) != trackingMap.end()){
-     t1 = trackingMap.at(nodeId);
+  
+  void updateTracker(DefinedOrUnknownSVal startIndex, DefinedOrUnknownSVal numElements) {
+
+    std::pair<DefinedOrUnknownSVal, DefinedOrUnknownSVal> p1 = std::make_pair(startIndex, numElements);
+    
+    if(startIndex.isUnknownOrUndef()){
+      std::cout << "Start Index has an unknown or undefined SVal \n";
     }
-    for(int i = startIndex; i < endIndex; i++){
-        t1.set(i);
+
+    if(numElements.isUnknownOrUndef()){
+      std::cout << "Number of elements has an unknown or undefined SVal \n";
     }
-    trackingMap[nodeId] = t1;
+
+    p1.first = startIndex;
+    p1.second = numElements;
+
+    trackingVector.push_back(p1);
   }
-  bool isRangeEmpty(int64_t startIndex, int64_t endIndex, int64_t nodeId) const{
-    bool flag = false;
-    if(trackingMap.find(nodeId) == trackingMap.end()){
-     return true;
+
+  bool isRangeEmpty(DefinedOrUnknownSVal startIndex, DefinedOrUnknownSVal numElements, CheckerContext &C) const{
+
+    std::cout << "All Fine till here 1\n";
+    ProgramStateRef state = C.getState();
+    SValBuilder &svalBuilder = C.getSValBuilder();
+    std::cout << "All Fine till here 2\n";
+    // if(svalBuilder != null){
+    //   std::cout << "Not null\n";
+    // }
+    if(startIndex.isUnknownOrUndef()){
+      std::cout << "Start Index has an unknown or undefined SVal \n";
     }
-    Tracker t1 = trackingMap.at(nodeId);
-    std::cout << "Original tracker: " << t1 << "\n";
-    for(int64_t i = startIndex; i < endIndex; i++){
-      flag = (flag)|t1[i];
+
+    if(numElements.isUnknownOrUndef()){
+      std::cout << "Number of elements has an unknown or undefined SVal \n";
     }
-    return (!flag);
+
+    DefinedOrUnknownSVal endIndex = svalBuilder.evalBinOp(state, BO_Add, startIndex, numElements, svalBuilder.getArrayIndexType()).castAs<DefinedOrUnknownSVal>();
+    auto it = trackingVector.begin();
+    std::cout << "All Fine till here 3\n";
+    for(; it != trackingVector.end(); ++it){
+          std::cout << "All Fine till here 4\n";
+          DefinedOrUnknownSVal startPoint = (*it).first;
+          DefinedOrUnknownSVal numElements2 = (*it).second;
+          DefinedOrUnknownSVal endPoint = svalBuilder.evalBinOp(state, BO_Add, startPoint, numElements2, svalBuilder.getArrayIndexType()).castAs<DefinedOrUnknownSVal>();
+          
+          ProgramStateRef toRightof =  state->assumeInBound(startIndex, endPoint, false);
+          ProgramStateRef toLeftof =  state->assumeInBound(endIndex, startPoint, true);
+
+          //TODO: This always checks from one direction
+
+          if(!toLeftof && !toRightof) return false;
+    }
+
+    return true;
   }
-  bool operator==(const TrackingClass &X) const { return trackingMap == X.trackingMap; }
+
+  bool operator==(const TrackingClass &X) const { return trackingVector == X.trackingVector; }
 };
 
 // Declaration of the Base Checker
@@ -213,8 +248,8 @@ ProgramStateRef removeFromState(ProgramStateRef State, SymbolRef variable);
 ProgramStateRef markAsUnsynchronized(ProgramStateRef State, SymbolRef variable);
 ProgramStateRef markAsSynchronized(ProgramStateRef State, SymbolRef variable);
 ProgramStateRef addToArrayList(ProgramStateRef State, const MemRegion* arrayRegion);
-ProgramStateRef taintArray(ProgramStateRef State, const MemRegion* arrayRegion, int64_t startIndex, int64_t endIndex, int64_t nodeIndex);
-bool checkTrackerRange(ProgramStateRef State, const MemRegion* arrayRegion, int64_t startIndex, int64_t endIndex, int64_t nodeIndex);
+ProgramStateRef taintArray(ProgramStateRef State, const MemRegion* arrayRegion, SVal startIndex, SVal numElements);
+bool checkTrackerRange(CheckerContext &C, const MemRegion* arrayRegion, SVal startIndex, SVal numElements);
 // void printTheMap(ProgramStateRef State);
 bool regionExistsInMap(ProgramStateRef State, const MemRegion* arrayRegion);
 } // namespace Properties
