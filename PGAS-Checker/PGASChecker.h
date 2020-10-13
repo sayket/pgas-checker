@@ -157,9 +157,13 @@ public:
           ProgramStateRef toRightof =  state->assumeInBound(startIndex, endPoint, false);
           ProgramStateRef toLeftof =  state->assumeInBound(endIndex, startPoint, true);
 
+          ProgramStateRef toRightof2 =  state->assumeInBound(startPoint, endIndex, false);
+          ProgramStateRef toLeftof2 =  state->assumeInBound(endPoint, startIndex, true);
+
           //TODO: This always checks from one direction
 
           if(!toLeftof && !toRightof) return false;
+          if(!toLeftof2 && !toRightof2) return false;
     }
 
     return true;
