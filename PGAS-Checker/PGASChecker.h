@@ -6,6 +6,7 @@
 #include "clang/StaticAnalyzer/Core/Checker.h"
 #include "clang/StaticAnalyzer/Core/CheckerManager.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h"
+// #include "OpenShmemBugReporter.h"
 #include <clang/StaticAnalyzer/Frontend/CheckerRegistry.h>
 #include <clang/StaticAnalyzer/Core/PathSensitive/CallEvent.h>
 #include <iostream>
@@ -146,6 +147,7 @@ public:
     }
 
     DefinedOrUnknownSVal endIndex = svalBuilder.evalBinOp(state, BO_Add, startIndex, numElements, svalBuilder.getArrayIndexType()).castAs<DefinedOrUnknownSVal>();
+    endIndex = svalBuilder.evalBinOp(state, BO_Sub, endIndex, svalBuilder.makeArrayIndex(1), svalBuilder.getArrayIndexType()).castAs<DefinedOrUnknownSVal>();
     auto it = trackingVector.begin();
     std::cout << "All Fine till here 3\n";
     for(; it != trackingVector.end(); ++it){
@@ -153,14 +155,13 @@ public:
           DefinedOrUnknownSVal startPoint = (*it).first;
           DefinedOrUnknownSVal numElements2 = (*it).second;
           DefinedOrUnknownSVal endPoint = svalBuilder.evalBinOp(state, BO_Add, startPoint, numElements2, svalBuilder.getArrayIndexType()).castAs<DefinedOrUnknownSVal>();
-          
+          endPoint = svalBuilder.evalBinOp(state, BO_Sub, endPoint, svalBuilder.makeArrayIndex(1), svalBuilder.getArrayIndexType()).castAs<DefinedOrUnknownSVal>();
+    
           ProgramStateRef toRightof =  state->assumeInBound(startIndex, endPoint, false);
           ProgramStateRef toLeftof =  state->assumeInBound(endIndex, startPoint, true);
 
           ProgramStateRef toRightof2 =  state->assumeInBound(startPoint, endIndex, false);
           ProgramStateRef toLeftof2 =  state->assumeInBound(endPoint, startIndex, true);
-
-          //TODO: This always checks from one direction
 
           if(!toLeftof && !toRightof) return false;
           if(!toLeftof2 && !toRightof2) return false;
@@ -186,6 +187,8 @@ public:
   void checkPreCall(const CallEvent &Call, CheckerContext &C) const;
   void checkLocation(SVal Loc, bool IsLoad, const Stmt *S,
                       CheckerContext &C) const;
+
+  // OpenShmemBugReporter BReporter;
   PGASChecker(routineHandlers (*addHandlers)());
 };
 

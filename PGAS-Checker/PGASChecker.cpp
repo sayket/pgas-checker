@@ -7,21 +7,30 @@ typedef std::unordered_map<int, Handler> defaultHandlers;
 defaultHandlers defaults;
 routineHandlers handlers;
 std::unique_ptr<BuiltinBug> BT;
+const CheckerBase* cb;
 
 // Sample Bug Report
 // void reportUnsynchronizedAccess(
-//   const CallEvent &Call, CheckerContext &C) {
+//   const CheckerBase* cb, const CallEvent &Call, CheckerContext &C) {
 
 //   ExplodedNode *errorNode = C.generateNonFatalErrorNode();
 //   if (!errorNode)
 //     return;
 
-//   if (!BT)
-//     BT.reset(new BuiltinBug(NULL, "Unsynchronized Access",
-//     ErrorMessages::UNSYNCHRONIZED_ACCESS));
-
-//   auto R = llvm::make_unique<BugReport>(*BT, BT->getDescription(),
-//   errorNode); R->addRange(Call.getSourceRange()); C.emitReport(std::move(R));
+//   if (!BT){
+//     std::cout<<"1*\n";
+//     BT.reset(new BuiltinBug(
+//           cb, "Out-of-bound array access",
+//           "Access out-of-bound array element (buffer overflow)"));
+//   }
+//   std::cout<<"2*\n";
+//   auto R =
+//         std::make_unique<PathSensitiveBugReport>(*BT, BT->getDescription(), errorNode); 
+//         std::cout<<"3*\n";
+//   R->addRange(Call.getSourceRange()); 
+//   std::cout<<"4*\n";
+//   C.emitReport(std::move(R));
+//   std::cout<<"5*\n";
 // }
 
 int64_t getIntegerValueForArgument(const CallEvent &Call,
@@ -375,11 +384,45 @@ void DefaultHandlers::handleReads(int handler, const CallEvent &Call,
     // Properties::printTheMap(State);
 
     bool result = Properties::checkTrackerRange(C, parentRegion, Idx, num_elements);
-    std::cout << "\n*************************** The Read is " << ((result)?"Safe\n":"Unsafe\n");
+    if(!result){
+      // std::cout << "\n*************************** The Read is \n";
+      // static CheckerProgramPointTag Tag("OSS-Checker", "Unsynchronized Read");
+
+      // ExplodedNode *ErrorNode{nullptr};
+      // ErrorNode = C.generateNonFatalErrorNode(State, &Tag);
+      // // ErrorNode = C.generateNonFatalErrorNode(State, &Tag);
+      // State = ErrorNode->getState();
+      // const CheckerBase *checker = this;
+      // reportUnsynchronizedAccess(checker, Call, C);
+
+      ExplodedNode *errorNode = C.generateNonFatalErrorNode();
+  if (!errorNode)
+    return;
+
+  if (!BT){
+    std::cout<<"1*\n";
+    BT.reset(new BuiltinBug(
+          cb, "Unsynchronized Read",
+          "Full/Part of the array being read is unsynchronized"));
+  }
+  std::cout<<"2*\n";
+  auto R =
+        std::make_unique<PathSensitiveBugReport>(*BT, BT->getDescription(), errorNode); 
+        std::cout<<"3*\n";
+  R->addRange(Call.getSourceRange()); 
+  std::cout<<"4*\n";
+  C.emitReport(std::move(R));
+  std::cout<<"5*\n";
+
+      // BReporter.reportUnsafeRead(MR,ErrorNode,C.getBugReporter());
+
+    }
+    // std::cout << "\n*************************** The Read is " << ((result)?"Safe\n":"Unsafe\n");
   }
 
     break;
   }
+
 }
 
 /**
@@ -417,7 +460,7 @@ void DefaultHandlers::handleMemoryDeallocations(int handler,
  *
  * @param addHandlers
  */
-PGASChecker::PGASChecker(routineHandlers (*addHandlers)()) {
+PGASChecker::PGASChecker(routineHandlers (*addHandlers)()){
   handlers = addHandlers();
   addDefaultHandlers();
 }
@@ -467,6 +510,7 @@ Handler PGASChecker::getDefaultHandler(Routine routineType) const {
  */
 void PGASChecker::eventHandler(int handler, std::string &routineName,
                                const CallEvent &Call, CheckerContext &C) const {
+  cb = this;
 
   Handler routineHandler = NULL;
   // get the corresponding iterator to the key
