@@ -129,7 +129,7 @@ ProgramStateRef Properties::addToArrayList(ProgramStateRef State,
 }
 
 ProgramStateRef Properties::taintArray(ProgramStateRef State,
-                                          const MemRegion* arrayRegion, SVal startIndex, SVal numElements) {
+                                          const MemRegion* arrayRegion, SVal startIndex, SVal numElements, SVal nodeIndex) {
   std::cout << "Region checking: " << arrayRegion << "\n";
   if((State->get<RegionTracker>()).contains(arrayRegion)){
     std::cout << "This region is there\n";
@@ -140,8 +140,9 @@ ProgramStateRef Properties::taintArray(ProgramStateRef State,
       // trackingClass.trackingMap = (*tracker).trackingMap;
       DefinedOrUnknownSVal startIndex2 = startIndex.castAs<DefinedOrUnknownSVal>();
       DefinedOrUnknownSVal numElements2 = numElements.castAs<DefinedOrUnknownSVal>();
+      DefinedOrUnknownSVal nodeIndex2 = nodeIndex.castAs<DefinedOrUnknownSVal>();
 
-      trackingClass.updateTracker(startIndex2, numElements2);
+      trackingClass.updateTracker(startIndex2, numElements2, nodeIndex2);
       // std::cout << "New tracker: " << trackingClass.t1 << "\n";
       State = State->remove<RegionTracker>(arrayRegion);
       State = State->set<RegionTracker>(arrayRegion, trackingClass);
@@ -159,7 +160,7 @@ ProgramStateRef Properties::taintArray(ProgramStateRef State,
 }
 
 bool Properties::checkTrackerRange(CheckerContext &C,
-                                          const MemRegion* arrayRegion, SVal startIndex, SVal numElements) {
+                                          const MemRegion* arrayRegion, SVal startIndex, SVal numElements, SVal nodeIndex) {
   
   ProgramStateRef State = C.getState();
   if(State->contains<RegionTracker>(arrayRegion)){
@@ -168,7 +169,9 @@ bool Properties::checkTrackerRange(CheckerContext &C,
     if(tracker){
       DefinedOrUnknownSVal startIndex2 = startIndex.castAs<DefinedOrUnknownSVal>();
       DefinedOrUnknownSVal numElements2 = numElements.castAs<DefinedOrUnknownSVal>();
-      bool flag = (*tracker).isRangeEmpty(startIndex2, numElements2, C);
+       DefinedOrUnknownSVal nodeIndex2 = nodeIndex.castAs<DefinedOrUnknownSVal>();
+
+      bool flag = (*tracker).isRangeEmpty(startIndex2, numElements2, nodeIndex2, C);
       // std::cout << "Tracker Empty: " << flag << "\n";
       return flag;
     } else {

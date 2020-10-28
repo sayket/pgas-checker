@@ -81,6 +81,8 @@ typedef llvm::ImmutableSet<SymbolRef> PGASSetImpl;
 
 
 typedef llvm::ImmutableSet<MemRegion*> PGASMemRegionsImpl;
+
+typedef std::vector<std::pair<DefinedOrUnknownSVal, DefinedOrUnknownSVal>> trackingVector;
 // typedef llvm::ImmutableMap<MemRegion*, Tracker> PGASMemRegionMap;
 
 // the following lines enables the developer to declare a custom immutable map
@@ -106,12 +108,13 @@ class TrackingClass {
 private:
 
 public:
-  std::vector<std::pair<DefinedOrUnknownSVal, DefinedOrUnknownSVal>> trackingVector;
+  // std::vector<std::pair<DefinedOrUnknownSVal, DefinedOrUnknownSVal>> trackingVector;
+  std::map<int64_t, trackingVector> trackingMap;
   Tracker tracker;
 
   void Profile(llvm::FoldingSetNodeID &ID) const { ID.AddInteger(tracker.to_ulong()); }
   
-  void updateTracker(DefinedOrUnknownSVal startIndex, DefinedOrUnknownSVal numElements) {
+  void updateTracker(DefinedOrUnknownSVal startIndex, DefinedOrUnknownSVal numElements, DefinedOrUnknownSVal nodeIndex) {
 
     std::pair<DefinedOrUnknownSVal, DefinedOrUnknownSVal> p1 = std::make_pair(startIndex, numElements);
     
@@ -123,13 +126,22 @@ public:
       std::cout << "Number of elements has an unknown or undefined SVal \n";
     }
 
+    const int64_t index = nodeIndex.castAs<nonloc::ConcreteInt>().getValue().getExtValue();
+
     p1.first = startIndex;
     p1.second = numElements;
 
-    trackingVector.push_back(p1);
+    auto it = trackingMap.find(index);
+    trackingVector tV;
+    if(it == trackingMap.end()){
+      trackingMap[index] = tV;
+    }
+    tV = trackingMap[index];
+    tV.push_back(p1);
+    trackingMap[index] = tV;
   }
 
-  bool isRangeEmpty(DefinedOrUnknownSVal startIndex, DefinedOrUnknownSVal numElements, CheckerContext &C) const{
+  bool isRangeEmpty(DefinedOrUnknownSVal startIndex, DefinedOrUnknownSVal numElements, DefinedOrUnknownSVal nodeIndex, CheckerContext &C) const{
 
     std::cout << "All Fine till here 1\n";
     ProgramStateRef state = C.getState();
@@ -138,6 +150,7 @@ public:
     // if(svalBuilder != null){
     //   std::cout << "Not null\n";
     // }
+    
     if(startIndex.isUnknownOrUndef()){
       std::cout << "Start Index has an unknown or undefined SVal \n";
     }
@@ -146,11 +159,21 @@ public:
       std::cout << "Number of elements has an unknown or undefined SVal \n";
     }
 
+    const int64_t index = nodeIndex.castAs<nonloc::ConcreteInt>().getValue().getExtValue();
+
+    auto it1 = trackingMap.find(index);
+    if(it1 == trackingMap.end()){
+      std::cout << "Didn't find the tracking vector\n";
+      return true;
+    }
+    trackingVector tV = it1->second;
+    std::cout << tV.size() << "\n";
+
     DefinedOrUnknownSVal endIndex = svalBuilder.evalBinOp(state, BO_Add, startIndex, numElements, svalBuilder.getArrayIndexType()).castAs<DefinedOrUnknownSVal>();
     endIndex = svalBuilder.evalBinOp(state, BO_Sub, endIndex, svalBuilder.makeArrayIndex(1), svalBuilder.getArrayIndexType()).castAs<DefinedOrUnknownSVal>();
-    auto it = trackingVector.begin();
+    auto it = tV.begin();
     std::cout << "All Fine till here 3\n";
-    for(; it != trackingVector.end(); ++it){
+    for(; it != tV.end(); ++it){
           std::cout << "All Fine till here 4\n";
           DefinedOrUnknownSVal startPoint = (*it).first;
           DefinedOrUnknownSVal numElements2 = (*it).second;
@@ -170,7 +193,7 @@ public:
     return true;
   }
 
-  bool operator==(const TrackingClass &X) const { return trackingVector == X.trackingVector; }
+  bool operator==(const TrackingClass &X) const { return trackingMap == X.trackingMap; }
 };
 
 // Declaration of the Base Checker
@@ -203,6 +226,8 @@ REGISTER_TRAIT_WITH_PROGRAMSTATE(FreedVariables, PGASSetImpl)
 REGISTER_TRAIT_WITH_PROGRAMSTATE(ArrayRegions, PGASMemRegionsImpl)
 //map of tracked indices
 REGISTER_MAP_WITH_PROGRAMSTATE(RegionTracker, const MemRegion*, TrackingClass) 
+//map of allocated/free variables
+REGISTER_MAP_WITH_PROGRAMSTATE(AllocationTracker, const MemRegion*, int64_t) 
 
 enum HANDLERS { PRE_CALL = 0, POST_CALL = 1 };
 
@@ -255,8 +280,8 @@ ProgramStateRef removeFromState(ProgramStateRef State, SymbolRef variable);
 ProgramStateRef markAsUnsynchronized(ProgramStateRef State, SymbolRef variable);
 ProgramStateRef markAsSynchronized(ProgramStateRef State, SymbolRef variable);
 ProgramStateRef addToArrayList(ProgramStateRef State, const MemRegion* arrayRegion);
-ProgramStateRef taintArray(ProgramStateRef State, const MemRegion* arrayRegion, SVal startIndex, SVal numElements);
-bool checkTrackerRange(CheckerContext &C, const MemRegion* arrayRegion, SVal startIndex, SVal numElements);
+ProgramStateRef taintArray(ProgramStateRef State, const MemRegion* arrayRegion, SVal startIndex, SVal numElements, SVal nodeIndex);
+bool checkTrackerRange(CheckerContext &C, const MemRegion* arrayRegion, SVal startIndex, SVal numElements, SVal nodeIndex);
 // void printTheMap(ProgramStateRef State);
 bool regionExistsInMap(ProgramStateRef State, const MemRegion* arrayRegion);
 } // namespace Properties

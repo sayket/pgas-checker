@@ -290,6 +290,7 @@ void DefaultHandlers::handleNonBlockingWrites(int handler,
       // }      
       // Get the number of elements being tainted
       SVal numElements = C.getSVal(Call.getArgExpr(2));
+      SVal nodeIndex = C.getSVal(Call.getArgExpr(3));
       // int64_t num_elements = getIntegerValueForArgument(Call,C,2);
       // int64_t nodeIndex = getIntegerValueForArgument(Call,C,3);
 
@@ -298,7 +299,7 @@ void DefaultHandlers::handleNonBlockingWrites(int handler,
       const MemRegion* parentRegion = ER->getSuperRegion();
       // const MemRegion* parentRegion = ER->getBaseRegion();
     
-      State = Properties::taintArray(State, parentRegion, Idx, numElements);
+      State = Properties::taintArray(State, parentRegion, Idx, numElements, nodeIndex);
       std::cout << "After Tainting\n";
       // Properties::printTheMap(State);
       Properties::transformState(C, State);
@@ -375,6 +376,8 @@ void DefaultHandlers::handleReads(int handler, const CallEvent &Call,
 
     DefinedOrUnknownSVal Idx = ER->getIndex().castAs<DefinedOrUnknownSVal>();
     SVal num_elements = C.getSVal(Call.getArgExpr(2));
+    SVal nodeIndex = C.getSVal(Call.getArgExpr(3));
+
     // const int64_t index = Idx.castAs<nonloc::ConcreteInt>().getValue().getExtValue();
     
     // int64_t num_elements = getIntegerValueForArgument(Call,C,2);
@@ -383,7 +386,7 @@ void DefaultHandlers::handleReads(int handler, const CallEvent &Call,
     const MemRegion* parentRegion = ER->getSuperRegion();
     // Properties::printTheMap(State);
 
-    bool result = Properties::checkTrackerRange(C, parentRegion, Idx, num_elements);
+    bool result = Properties::checkTrackerRange(C, parentRegion, Idx, num_elements, nodeIndex);
     if(!result){
       // std::cout << "\n*************************** The Read is \n";
       // static CheckerProgramPointTag Tag("OSS-Checker", "Unsynchronized Read");
@@ -511,7 +514,7 @@ Handler PGASChecker::getDefaultHandler(Routine routineType) const {
 void PGASChecker::eventHandler(int handler, std::string &routineName,
                                const CallEvent &Call, CheckerContext &C) const {
   cb = this;
-
+  
   Handler routineHandler = NULL;
   // get the corresponding iterator to the key
   routineHandlers::const_iterator iterator = handlers.find(routineName);
