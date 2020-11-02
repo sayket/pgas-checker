@@ -29,7 +29,8 @@ typedef enum routines {
   SYNCHRONIZATION,
   BLOCKING_WRITE,
   NON_BLOCKING_WRITE,
-  READ_FROM_MEMORY
+  READ_FROM_MEMORY,
+  FINAL_CALL
 } Routine;
 
 // ( non_blocking_routine_type, event_handler  )
@@ -263,6 +264,8 @@ void handleBlockingWrites(int handler, const CallEvent &Call,
 void handleReads(int handler, const CallEvent &Call, CheckerContext &C);
 void handleMemoryDeallocations(int handler, const CallEvent &Call,
                                CheckerContext &C);
+void handleFinalCalls(int handler, const CallEvent &Call,
+                               CheckerContext &C);
 } // namespace DefaultHandlers
 
 // these are the common properties which shared across different PGAS
@@ -273,10 +276,10 @@ void transformState(CheckerContext &C, ProgramStateRef State);
 ProgramStateRef removeFromUnitializedList(ProgramStateRef State,
                                           SymbolRef variable);
 ProgramStateRef removeFromFreeList(ProgramStateRef State, SymbolRef variable);
-ProgramStateRef addToFreeList(ProgramStateRef State, SymbolRef variable);
+ProgramStateRef addToFreeList(ProgramStateRef State, const MemRegion* arrayRegion);
 ProgramStateRef addToUnintializedList(ProgramStateRef State,
                                       SymbolRef variable);
-ProgramStateRef removeFromState(ProgramStateRef State, SymbolRef variable);
+ProgramStateRef removeFromState(ProgramStateRef State, const MemRegion* arrayRegion);
 ProgramStateRef markAsUnsynchronized(ProgramStateRef State, SymbolRef variable);
 ProgramStateRef markAsSynchronized(ProgramStateRef State, SymbolRef variable);
 ProgramStateRef addToArrayList(ProgramStateRef State, const MemRegion* arrayRegion);

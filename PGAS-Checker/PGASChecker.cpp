@@ -345,8 +345,6 @@ void DefaultHandlers::handleReads(int handler, const CallEvent &Call,
   const RefState *SS = State->get<CheckerState>(symmetricVariable);
   const MemRegion *const MR = Call.getArgSVal(0).getAsRegion();
   const ElementRegion *const ER = dyn_cast<ElementRegion>(MR);
-
-
   
   switch (handler) {
 
@@ -440,7 +438,7 @@ void DefaultHandlers::handleMemoryDeallocations(int handler,
                                                 CheckerContext &C) {
 
   ProgramStateRef State = C.getState();
-  SymbolRef freedVariable = Call.getArgSVal(0).getAsSymbol();
+  const MemRegion* freedVariable = Call.getArgSVal(0).getAsRegion()->getBaseRegion();
 
   switch (handler) {
   case PRE_CALL:
@@ -449,11 +447,67 @@ void DefaultHandlers::handleMemoryDeallocations(int handler,
     // add it to the freed variable set; since it is adding it multiple times
     // should have the same effect
     State = Properties::addToFreeList(State, freedVariable);
+    if(!State){
+      ExplodedNode *errorNode = C.generateNonFatalErrorNode();
+  if (!errorNode)
+    return;
+
+  if (!BT){
+    std::cout<<"1*\n";
+    BT.reset(new BuiltinBug(
+          cb, "Double Free",
+          "Either this memory region was already free or never assigned"));
+  }
+  std::cout<<"2*\n";
+  auto R =
+        std::make_unique<PathSensitiveBugReport>(*BT, BT->getDescription(), errorNode); 
+        std::cout<<"3*\n";
+  R->addRange(Call.getSourceRange()); 
+  std::cout<<"4*\n";
+  C.emitReport(std::move(R));
+  std::cout<<"5*\n";
+  return;
+    } else {
+      Properties::transformState(C, State);
+    }
     // stop tracking freed variable
     State = Properties::removeFromState(State, freedVariable);
     Properties::transformState(C, State);
     break;
   }
+}
+
+void DefaultHandlers::handleFinalCalls(int handler,
+                                                const CallEvent &Call,
+                                                CheckerContext &C) {
+  switch (handler) {
+  case PRE_CALL:
+    break;
+  case POST_CALL:
+  ProgramStateRef State = C.getState();
+  auto it = (State->get<AllocationTracker>()).begin();
+  for(;it != (State->get<AllocationTracker>()).end(); ++it){
+    std::cout << "Final Call 3\n" << (it->second) << "\n";
+    if((it->second) == 1){
+        ExplodedNode *errorNode = C.generateNonFatalErrorNode();
+        if (!errorNode) return;
+
+        if (!BT){
+          BT.reset(new BuiltinBug( cb, "Missing Free",
+            "The memory region was not freed"));
+        }
+  std::cout<<"2*\n";
+  auto R =
+        std::make_unique<PathSensitiveBugReport>(*BT, BT->getDescription(), errorNode); 
+        std::cout<<"3*\n";
+  R->addRange(Call.getSourceRange()); 
+  std::cout<<"4*\n";
+  C.emitReport(std::move(R));
+  std::cout<<"5*\n";
+  return;
+    }
+  }
+}
 }
 
 /**
@@ -479,6 +533,7 @@ void PGASChecker::addDefaultHandlers() {
   defaults.emplace(NON_BLOCKING_WRITE,
                    DefaultHandlers::handleNonBlockingWrites);
   defaults.emplace(READ_FROM_MEMORY, DefaultHandlers::handleReads);
+  defaults.emplace(FINAL_CALL, DefaultHandlers::handleFinalCalls);
 }
 
 /**
@@ -514,7 +569,7 @@ Handler PGASChecker::getDefaultHandler(Routine routineType) const {
 void PGASChecker::eventHandler(int handler, std::string &routineName,
                                const CallEvent &Call, CheckerContext &C) const {
   cb = this;
-  
+
   Handler routineHandler = NULL;
   // get the corresponding iterator to the key
   routineHandlers::const_iterator iterator = handlers.find(routineName);

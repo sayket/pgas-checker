@@ -59,8 +59,34 @@ ProgramStateRef Properties::removeFromFreeList(ProgramStateRef State,
  * @return ProgramStateRef
  */
 ProgramStateRef Properties::addToFreeList(ProgramStateRef State,
-                                          SymbolRef variable) {
-  State = State->add<FreedVariables>(variable);
+                                          const MemRegion* arrayRegion) {
+  // State = State->add<FreedVariables>(variable);
+  std::cout << (State->get<AllocationTracker>()).isEmpty() << " 555\n";
+
+  auto it = (State->get<AllocationTracker>()).begin();
+  for(;it != (State->get<AllocationTracker>()).end(); ++it){
+    std::cout << (it->first)->getString() << "," << it->second << " -----\n";
+  }
+
+  const int64_t* val = (State->get<AllocationTracker>(arrayRegion));
+  int64_t result = (*val);
+  std::cout<<(result)<<" ***\n";
+    if(result == 0){
+      std::cout<<"0\n";
+      return NULL;
+    }
+
+  // if((State->get<AllocationTracker>()).contains(arrayRegion)){
+  //   int64_t val = *(State->get<AllocationTracker>(arrayRegion));
+  //   if(val == 0){
+  //     std::cout<<"0\n";
+  //     return NULL;
+  //   }
+  // } else {
+  //   std::cout<<"Not assigned\n";
+  //   return NULL;
+  // }
+  State = State->set<AllocationTracker>(arrayRegion, 0);
   return State;
 }
 
@@ -78,11 +104,18 @@ ProgramStateRef Properties::addToUnintializedList(ProgramStateRef State,
  * @return ProgramStateRef
  */
 ProgramStateRef Properties::removeFromState(ProgramStateRef State,
-                                            SymbolRef variable) {
-  const RefState *SS = State->get<CheckerState>(variable);
-  if (SS) {
-    State = State->remove<CheckerState>(variable);
-  }
+                                            const MemRegion* arrayRegion) {
+  // const RefState *SS = State->get<CheckerState>(variable);
+  // if (SS) {
+  //   State = State->remove<CheckerState>(variable);
+  // }
+  // if((State->get<AllocationTracker>()).contains(arrayRegion)){
+  //   State = State->remove<AllocationTracker>(arrayRegion);
+  // }
+  // const RefState *SS = State->get<CheckerState>(variable);
+  // if (SS) {
+  //   State = State->remove<CheckerState>(variable);
+  // }
   return State;
 }
 
@@ -115,6 +148,30 @@ ProgramStateRef Properties::markAsSynchronized(ProgramStateRef State,
 
 ProgramStateRef Properties::addToArrayList(ProgramStateRef State,
                                           const MemRegion* arrayRegion) {
+  
+  if((State->get<AllocationTracker>()).contains(arrayRegion)){
+    int64_t val = *(State->get<AllocationTracker>(arrayRegion));
+    if(val == 1) return NULL;
+  }
+
+  std::cout << (State->get<AllocationTracker>()).isEmpty() << " 777\n";
+
+  State = State->set<AllocationTracker>(arrayRegion, 1);
+
+  std::cout << (State->get<AllocationTracker>()).isEmpty() << " 777\n";
+
+  auto it = (State->get<AllocationTracker>()).begin();
+  for(;it != (State->get<AllocationTracker>()).end(); ++it){
+    std::cout << (it->first)->getString() << "," << it->second << "2\n";
+  }
+
+  int64_t val = *(State->get<AllocationTracker>(arrayRegion));
+  //   if(val == 0){
+      std::cout<<" Val Entered Properly " << val << "\n";
+  //     return NULL;
+  //   }
+
+
   TrackingClass t1;
   State = State->set<RegionTracker>(arrayRegion, t1);
   std::cout << "Region added: " << arrayRegion << "\n";

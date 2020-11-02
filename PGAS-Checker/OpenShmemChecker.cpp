@@ -66,6 +66,9 @@ namespace ento{
                    std::make_pair(NON_BLOCKING_WRITE, (Handler)NULL));
   handlers.emplace(OpenShmemConstants::SHMEM_GET,
                    std::make_pair(READ_FROM_MEMORY,  (Handler)NULL));
+  handlers.emplace(OpenShmemConstants::SHMEM_FINALIZE,
+                   std::make_pair(FINAL_CALL,  (Handler)NULL));
+
   return handlers;
 }
 }
