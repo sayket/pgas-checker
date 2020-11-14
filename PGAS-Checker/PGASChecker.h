@@ -144,13 +144,10 @@ public:
 
   bool isRangeEmpty(DefinedOrUnknownSVal startIndex, DefinedOrUnknownSVal numElements, DefinedOrUnknownSVal nodeIndex, CheckerContext &C) const{
 
-    std::cout << "All Fine till here 1\n";
+    // std::cout << "All Fine till here 1\n";
     ProgramStateRef state = C.getState();
     SValBuilder &svalBuilder = C.getSValBuilder();
-    std::cout << "All Fine till here 2\n";
-    // if(svalBuilder != null){
-    //   std::cout << "Not null\n";
-    // }
+    // std::cout << "All Fine till here 2\n";
     
     if(startIndex.isUnknownOrUndef()){
       std::cout << "Start Index has an unknown or undefined SVal \n";
@@ -173,9 +170,7 @@ public:
     DefinedOrUnknownSVal endIndex = svalBuilder.evalBinOp(state, BO_Add, startIndex, numElements, svalBuilder.getArrayIndexType()).castAs<DefinedOrUnknownSVal>();
     endIndex = svalBuilder.evalBinOp(state, BO_Sub, endIndex, svalBuilder.makeArrayIndex(1), svalBuilder.getArrayIndexType()).castAs<DefinedOrUnknownSVal>();
     auto it = tV.begin();
-    std::cout << "All Fine till here 3\n";
     for(; it != tV.end(); ++it){
-          std::cout << "All Fine till here 4\n";
           DefinedOrUnknownSVal startPoint = (*it).first;
           DefinedOrUnknownSVal numElements2 = (*it).second;
           DefinedOrUnknownSVal endPoint = svalBuilder.evalBinOp(state, BO_Add, startPoint, numElements2, svalBuilder.getArrayIndexType()).castAs<DefinedOrUnknownSVal>();
@@ -278,7 +273,7 @@ ProgramStateRef removeFromUnitializedList(ProgramStateRef State,
 ProgramStateRef removeFromFreeList(ProgramStateRef State, SymbolRef variable);
 ProgramStateRef addToFreeList(ProgramStateRef State, const MemRegion* arrayRegion);
 ProgramStateRef addToUnintializedList(ProgramStateRef State,
-                                      SymbolRef variable);
+                                      const MemRegion* arrayRegion);
 ProgramStateRef removeFromState(ProgramStateRef State, const MemRegion* arrayRegion);
 ProgramStateRef markAsUnsynchronized(ProgramStateRef State, SymbolRef variable);
 ProgramStateRef markAsSynchronized(ProgramStateRef State, SymbolRef variable);
@@ -287,6 +282,8 @@ ProgramStateRef taintArray(ProgramStateRef State, const MemRegion* arrayRegion, 
 bool checkTrackerRange(CheckerContext &C, const MemRegion* arrayRegion, SVal startIndex, SVal numElements, SVal nodeIndex);
 // void printTheMap(ProgramStateRef State);
 bool regionExistsInMap(ProgramStateRef State, const MemRegion* arrayRegion);
+bool testMissingFree(ProgramStateRef State);
+bool checkMissingFree(ProgramStateRef State, const MemRegion* arrayRegion);
 } // namespace Properties
 
 

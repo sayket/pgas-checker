@@ -61,18 +61,18 @@ ProgramStateRef Properties::removeFromFreeList(ProgramStateRef State,
 ProgramStateRef Properties::addToFreeList(ProgramStateRef State,
                                           const MemRegion* arrayRegion) {
   // State = State->add<FreedVariables>(variable);
-  std::cout << (State->get<AllocationTracker>()).isEmpty() << " 555\n";
+  // std::cout << (State->get<AllocationTracker>()).isEmpty() << " 555\n";
 
-  auto it = (State->get<AllocationTracker>()).begin();
-  for(;it != (State->get<AllocationTracker>()).end(); ++it){
-    std::cout << (it->first)->getString() << "," << it->second << " -----\n";
-  }
+  // auto it = (State->get<AllocationTracker>()).begin();
+  // for(;it != (State->get<AllocationTracker>()).end(); ++it){
+  //   std::cout << (it->first)->getString() << "," << it->second << " -----\n";
+  // }
 
   const int64_t* val = (State->get<AllocationTracker>(arrayRegion));
   int64_t result = (*val);
-  std::cout<<(result)<<" ***\n";
+  // std::cout<<(result)<<" ***\n";
     if(result == 0){
-      std::cout<<"0\n";
+      // std::cout<<"0\n";
       return NULL;
     }
 
@@ -91,8 +91,9 @@ ProgramStateRef Properties::addToFreeList(ProgramStateRef State,
 }
 
 ProgramStateRef Properties::addToUnintializedList(ProgramStateRef State,
-                                                  SymbolRef variable) {
-  State = State->add<UnintializedVariables>(variable);
+                                                  const MemRegion* arrayRegion) {
+  // State = State->add<UnintializedVariables>(variable);
+  State = State->set<AllocationTracker>(arrayRegion, 1);
   return State;
 }
 
@@ -145,51 +146,48 @@ ProgramStateRef Properties::markAsSynchronized(ProgramStateRef State,
   return State;
 }
 
-
 ProgramStateRef Properties::addToArrayList(ProgramStateRef State,
                                           const MemRegion* arrayRegion) {
   
-  if((State->get<AllocationTracker>()).contains(arrayRegion)){
-    int64_t val = *(State->get<AllocationTracker>(arrayRegion));
-    if(val == 1) return NULL;
-  }
+  // if((State->get<AllocationTracker>()).contains(arrayRegion)){
+  //   int64_t val = *(State->get<AllocationTracker>(arrayRegion));
+  //   if(val == 1) return NULL;
+  // }
 
-  std::cout << (State->get<AllocationTracker>()).isEmpty() << " 777\n";
+  // std::cout << (State->get<AllocationTracker>()).isEmpty() << " 777\n";
 
   State = State->set<AllocationTracker>(arrayRegion, 1);
 
-  std::cout << (State->get<AllocationTracker>()).isEmpty() << " 777\n";
+  // std::cout << (State->get<AllocationTracker>()).isEmpty() << " 777\n";
 
-  auto it = (State->get<AllocationTracker>()).begin();
-  for(;it != (State->get<AllocationTracker>()).end(); ++it){
-    std::cout << (it->first)->getString() << "," << it->second << "2\n";
-  }
+  // auto it = (State->get<AllocationTracker>()).begin();
+  // for(;it != (State->get<AllocationTracker>()).end(); ++it){
+  //   std::cout << (it->first)->getString() << "," << it->second << "\n";
+  // }
 
-  int64_t val = *(State->get<AllocationTracker>(arrayRegion));
-  //   if(val == 0){
-      std::cout<<" Val Entered Properly " << val << "\n";
-  //     return NULL;
-  //   }
-
-
+  // int64_t val = *(State->get<AllocationTracker>(arrayRegion));
+  // //   if(val == 0){
+  //     std::cout<<" Val Entered Properly " << val << "\n";
+  // //     return NULL;
+  // //   }
   TrackingClass t1;
   State = State->set<RegionTracker>(arrayRegion, t1);
-  std::cout << "Region added: " << arrayRegion << "\n";
+  // std::cout << "Region added: " << arrayRegion << "\n";
   int count = 0;
   llvm::ImmutableMap<const clang::ento::MemRegion*, clang::ento::TrackingClass> map = State->get<RegionTracker>();
   for(llvm::ImmutableMap<const clang::ento::MemRegion*, clang::ento::TrackingClass>::iterator i = map.begin(); i != map.end(); i++){
-    std::cout << "Incr count\n";
+    // std::cout << "Incr count\n";
     count++;
   }
-  std::cout << "Size: " << count << "\n";
+  // std::cout << "Size: " << count << "\n";
   return State;
 }
 
 ProgramStateRef Properties::taintArray(ProgramStateRef State,
                                           const MemRegion* arrayRegion, SVal startIndex, SVal numElements, SVal nodeIndex) {
-  std::cout << "Region checking: " << arrayRegion << "\n";
+  // std::cout << "Region checking: " << arrayRegion << "\n";
   if((State->get<RegionTracker>()).contains(arrayRegion)){
-    std::cout << "This region is there\n";
+    // std::cout << "This region is there\n";
     const TrackingClass *tracker = State->get<RegionTracker>(arrayRegion);
     if(tracker){
       // std::cout << "Node Index: " << nodeIndex << "\n";
@@ -212,7 +210,6 @@ ProgramStateRef Properties::taintArray(ProgramStateRef State,
   } else {
     std::cout << "This region is not in list\n";    
   }
-
   return State;
 }
 
@@ -221,7 +218,7 @@ bool Properties::checkTrackerRange(CheckerContext &C,
   
   ProgramStateRef State = C.getState();
   if(State->contains<RegionTracker>(arrayRegion)){
-    std::cout << "This region is there\n";
+    // std::cout << "This region is there\n";
     const TrackingClass *tracker = State->get<RegionTracker>(arrayRegion);
     if(tracker){
       DefinedOrUnknownSVal startIndex2 = startIndex.castAs<DefinedOrUnknownSVal>();
@@ -259,6 +256,17 @@ bool Properties::checkTrackerRange(CheckerContext &C,
 //     }
 //     /// TEST END /////
 // }
+
+bool Properties::testMissingFree(ProgramStateRef State){
+  auto it = (State->get<AllocationTracker>()).begin();
+  for(;it != (State->get<AllocationTracker>()).end(); ++it){
+    // std::cout << "Final Call 3\n" << (it->second) << "\n";
+    if((it->second) == 1){
+        return true;
+    }
+  }
+  return false;
+}
 
 bool Properties::regionExistsInMap(ProgramStateRef State,
                                           const MemRegion* arrayRegion){

@@ -8,6 +8,7 @@ defaultHandlers defaults;
 routineHandlers handlers;
 std::unique_ptr<BuiltinBug> BT;
 const CheckerBase* cb;
+int barrierTracker = 0; // move into property layer, and add it as a property
 
 // Sample Bug Report
 // void reportUnsynchronizedAccess(
@@ -89,7 +90,7 @@ void DefaultHandlers::handleMemoryAllocations(int handler,
     if (!FD) return;
     // get the invoked routine name
     std::string routineName = FD->getNameInfo().getAsString();
-    std::cout << routineName << "-\n";
+    // std::cout << routineName << "-\n";
 
     const MemRegion* ptrRegion = Call.getReturnValue().getAsRegion();
     if(!ptrRegion){
@@ -100,7 +101,8 @@ void DefaultHandlers::handleMemoryAllocations(int handler,
     }
 
     // add unitilized variables to unitilized list
-    State = Properties::addToUnintializedList(State, allocatedVariable);
+    State = Properties::addToUnintializedList(State, ptrRegion);
+    // Properties::transformState(C, State);
     // mark is synchronized by default
     State = Properties::markAsSynchronized(State, allocatedVariable);
     // remove the variable from the freed list if allocated again
@@ -110,7 +112,10 @@ void DefaultHandlers::handleMemoryAllocations(int handler,
     // transform state
     State = Properties::addToArrayList(State, ptrRegion);
     Properties::transformState(C, State);
-
+    auto it2 = (State->get<AllocationTracker>()).begin();
+      for(;it2 != (State->get<AllocationTracker>()).end(); ++it2){
+        std::cout << (it2->first)->getString() << "," << it2->second << " -----\n";
+      }
     break;
   }
 }
@@ -135,12 +140,26 @@ void DefaultHandlers::handleBarriers(int handler, const CallEvent &Call,
   case POST_CALL:
     // iterate through all the track variables so far variables
     // set each of the values to synchronized
-    std::cout << "Barrier-1\n";
+    // std::cout << "Barrier-1\n";
+
+    if(barrierTracker == 0){
+        ExplodedNode *errorNode = C.generateNonFatalErrorNode();
+        if (!errorNode) return;
+
+        if (!BT){
+          BT.reset(new BuiltinBug(cb, "Barrier Not Needed","This barrier is unnecessary, please consider removing it"));
+        }
+        auto R = std::make_unique<PathSensitiveBugReport>(*BT, BT->getDescription(), errorNode);
+        R->addRange(Call.getSourceRange());
+        C.emitReport(std::move(R));
+    }
+
+    barrierTracker = 0;
 
     for (PGASMapImpl::iterator I = trackedVariables.begin(),
                                E = trackedVariables.end();
          I != E; ++I) {
-      std::cout << "Barrier-Y\n";
+      // std::cout << "Barrier-Y\n";
 
       SymbolRef symmetricVariable = I->first;
       // mark all symmetric variables as synchronized
@@ -169,7 +188,7 @@ void DefaultHandlers::handleBarriers(int handler, const CallEvent &Call,
 
     llvm::ImmutableMap<const clang::ento::MemRegion*, clang::ento::TrackingClass> map = State->get<RegionTracker>();
     for(llvm::ImmutableMap<const clang::ento::MemRegion*, clang::ento::TrackingClass>::iterator i = map.begin(); i != map.end(); i++){
-      std::cout << "Barrier-X\n";
+      // std::cout << "Barrier-X\n";
 
       const MemRegion* arrayBasePtr = i->first;
       // reset all trackers
@@ -179,7 +198,7 @@ void DefaultHandlers::handleBarriers(int handler, const CallEvent &Call,
       Properties::transformState(C, State);
     }
 
-    std::cout << "Barrier-3\n";
+    // std::cout << "Barrier-3\n";
 
     break;
   }
@@ -205,7 +224,7 @@ void DefaultHandlers::handleNonBlockingWrites(int handler,
     return;
   }
 
-  std::cout << "Has Globals Storage " << MR->hasGlobalsOrParametersStorage() << "\n";
+  // std::cout << "Has Globals Storage " << MR->hasGlobalsOrParametersStorage() << "\n";
 
 
   // if(isa<MemSpaceRegion>(MR)){
@@ -258,15 +277,17 @@ void DefaultHandlers::handleNonBlockingWrites(int handler,
 
     const RefState *SS = State->get<CheckerState>(destVariable);
 
-      if (!SS) {
-      // TODOS: replace couts with bug reports
-        std::cout << ErrorMessages::VARIABLE_NOT_SYMMETRIC;
-        return;
-    }
+    //   if (!SS) {
+    //   // TODOS: replace couts with bug reports
+    //     std::cout << ErrorMessages::VARIABLE_NOT_SYMMETRIC;
+    //     return;
+    // }
 
   }
     break;
   case POST_CALL:
+
+    barrierTracker = 1;
     // remove the unintialized variables
     State = Properties::removeFromUnitializedList(State, destVariable);
     // mark as unsynchronized
@@ -300,7 +321,6 @@ void DefaultHandlers::handleNonBlockingWrites(int handler,
       // const MemRegion* parentRegion = ER->getBaseRegion();
     
       State = Properties::taintArray(State, parentRegion, Idx, numElements, nodeIndex);
-      std::cout << "After Tainting\n";
       // Properties::printTheMap(State);
       Properties::transformState(C, State);
     // Properties::printTheMap(State);
@@ -351,18 +371,18 @@ void DefaultHandlers::handleReads(int handler, const CallEvent &Call,
   case PRE_CALL:
 
     // if the user is trying to access an unintialized bit of memory
-    if (State->contains<UnintializedVariables>(symmetricVariable)) {
-      // TODOS: replace couts with bug reports
-      std::cout << ErrorMessages::ACCESS_UNINTIALIZED_VARIABLE;
-      return;
-    }
+    // if (State->contains<UnintializedVariables>(symmetricVariable)) {
+    //   // TODOS: replace couts with bug reports
+    //   std::cout << ErrorMessages::ACCESS_UNINTIALIZED_VARIABLE;
+    //   return;
+    // }
 
     // check if the symmetric memory is in an unsynchronized state
-    if (SS && SS->isUnSynchronized()) {
-      // reportUnsynchronizedAccess(Call, C);
-      std::cout << ErrorMessages::UNSYNCHRONIZED_ACCESS;
-      return;
-    }
+    // if (SS && SS->isUnSynchronized()) {
+    //   // reportUnsynchronizedAccess(Call, C);
+    //   std::cout << ErrorMessages::UNSYNCHRONIZED_ACCESS;
+    //   return;
+    // }
 
     break;
 
@@ -401,25 +421,21 @@ void DefaultHandlers::handleReads(int handler, const CallEvent &Call,
     return;
 
   if (!BT){
-    std::cout<<"1*\n";
     BT.reset(new BuiltinBug(
           cb, "Unsynchronized Read",
           "Full/Part of the array being read is unsynchronized"));
   }
-  std::cout<<"2*\n";
   auto R =
-        std::make_unique<PathSensitiveBugReport>(*BT, BT->getDescription(), errorNode); 
-        std::cout<<"3*\n";
-  R->addRange(Call.getSourceRange()); 
-  std::cout<<"4*\n";
+        std::make_unique<PathSensitiveBugReport>(*BT, BT->getDescription(), errorNode);
+  R->addRange(Call.getSourceRange());
   C.emitReport(std::move(R));
-  std::cout<<"5*\n";
 
       // BReporter.reportUnsafeRead(MR,ErrorNode,C.getBugReporter());
 
     }
     // std::cout << "\n*************************** The Read is " << ((result)?"Safe\n":"Unsafe\n");
   }
+  Properties::transformState(C, State);
 
     break;
   }
@@ -453,20 +469,15 @@ void DefaultHandlers::handleMemoryDeallocations(int handler,
     return;
 
   if (!BT){
-    std::cout<<"1*\n";
     BT.reset(new BuiltinBug(
           cb, "Double Free",
           "Either this memory region was already free or never assigned"));
   }
-  std::cout<<"2*\n";
   auto R =
         std::make_unique<PathSensitiveBugReport>(*BT, BT->getDescription(), errorNode); 
-        std::cout<<"3*\n";
-  R->addRange(Call.getSourceRange()); 
-  std::cout<<"4*\n";
+  R->addRange(Call.getSourceRange());
   C.emitReport(std::move(R));
-  std::cout<<"5*\n";
-  return;
+  // return;
     } else {
       Properties::transformState(C, State);
     }
@@ -481,33 +492,19 @@ void DefaultHandlers::handleFinalCalls(int handler,
                                                 const CallEvent &Call,
                                                 CheckerContext &C) {
   switch (handler) {
-  case PRE_CALL:
-    break;
   case POST_CALL:
   ProgramStateRef State = C.getState();
-  auto it = (State->get<AllocationTracker>()).begin();
-  for(;it != (State->get<AllocationTracker>()).end(); ++it){
-    std::cout << "Final Call 3\n" << (it->second) << "\n";
-    if((it->second) == 1){
+  bool result = Properties::testMissingFree(State);
+  if(result){
         ExplodedNode *errorNode = C.generateNonFatalErrorNode();
-        if (!errorNode) return;
-
         if (!BT){
-          BT.reset(new BuiltinBug( cb, "Missing Free",
-            "The memory region was not freed"));
+          BT.reset(new BuiltinBug( cb, "Missing Free","The memory region was not freed"));
         }
-  std::cout<<"2*\n";
-  auto R =
-        std::make_unique<PathSensitiveBugReport>(*BT, BT->getDescription(), errorNode); 
-        std::cout<<"3*\n";
-  R->addRange(Call.getSourceRange()); 
-  std::cout<<"4*\n";
-  C.emitReport(std::move(R));
-  std::cout<<"5*\n";
-  return;
+        auto R = std::make_unique<PathSensitiveBugReport>(*BT, BT->getDescription(), errorNode); 
+        R->addRange(Call.getSourceRange());
+        C.emitReport(std::move(R));
     }
   }
-}
 }
 
 /**
@@ -614,7 +611,7 @@ void PGASChecker::checkPostCall(const CallEvent &Call,
   // get the invoked routine name
   std::string routineName = FD->getNameInfo().getAsString();
   
-  // std::cout << "PostCall " << routineName << ":\n ";
+  std::cout << "PostCall " << routineName << ":\n ";
   
   // invoke the event handler to figure out the right implementation
   eventHandler(POST_CALL, routineName, Call, C);
