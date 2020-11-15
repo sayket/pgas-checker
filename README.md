@@ -37,7 +37,7 @@ key of the map and the value being a pair of <RoutineType, FunctionPointer>. The
        .......
        def OpenShmemChecker : Checker<"OpenShmemChecker">,
        HelpText<"Checks correctness of a OpenShmem program">,
-       DescFile<"OpenShmemChecker.cpp">;
+       Documentation<NotDocumented>;
        .......
        }
     ```
