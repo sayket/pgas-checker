@@ -5,48 +5,6 @@ using namespace ento;
 
 namespace clang{
 namespace ento{
-/**
- * @brief OpenShmem specific implementation of a get handler
- *
- * @param handler
- * @param Call
- * @param C
- */
-
-
-
-// void shmemGetHandler(int handler, const CallEvent &Call, CheckerContext &C) {
-
-//   if (Call.getNumArgs() < 1)
-//     return;
-
-//   // TODO: remove the harcoding of variable index;
-
-//   SymbolRef symmetricVariable = Call.getArgSVal(0).getAsSymbol();
-
-//   if (!symmetricVariable)
-//     return;
-
-//   // TODO: extract this out of the function
-//   ProgramStateRef State = C.getState();
-
-//   const RefState *SS = State->get<CheckerState>(symmetricVariable);
-
-//   if (!SS) {
-//     // TODOS: replace couts with bug reports
-//     std::cout << ErrorMessages::VARIABLE_NOT_SYMMETRIC;
-//     return;
-//   }
-
-//   // complain if an access it made to the freed variables
-//   if (State->contains<FreedVariables>(symmetricVariable)) {
-//     // TODOS: replace couts with bug reports
-//     std::cout << ErrorMessages::ACCESS_FREED_VARIABLE;
-//     return;
-//   }
-
-//   DefaultHandlers::handleReads(handler, Call, C);
-// }
 
 /**
  * @brief Provide implementation of routine types

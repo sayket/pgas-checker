@@ -14,7 +14,6 @@ routineHandlers addHandlers();
 class OpenSHMEMChecker : public PGASChecker{
 	public:
 		OpenSHMEMChecker(routineHandlers (*addHandlers)());
-		// routineHandlers addHandlers();
 };
 
 namespace OpenShmemConstants {

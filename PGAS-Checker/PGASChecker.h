@@ -84,7 +84,6 @@ typedef llvm::ImmutableSet<SymbolRef> PGASSetImpl;
 typedef llvm::ImmutableSet<MemRegion*> PGASMemRegionsImpl;
 
 typedef std::vector<std::pair<DefinedOrUnknownSVal, DefinedOrUnknownSVal>> trackingVector;
-// typedef llvm::ImmutableMap<MemRegion*, Tracker> PGASMemRegionMap;
 
 // the following lines enables the developer to declare a custom immutable map
 // with custom keys and value; for instance declaring a map using the
@@ -109,7 +108,6 @@ class TrackingClass {
 private:
 
 public:
-  // std::vector<std::pair<DefinedOrUnknownSVal, DefinedOrUnknownSVal>> trackingVector;
   std::map<int64_t, trackingVector> trackingMap;
   Tracker tracker;
 
@@ -144,10 +142,8 @@ public:
 
   bool isRangeEmpty(DefinedOrUnknownSVal startIndex, DefinedOrUnknownSVal numElements, DefinedOrUnknownSVal nodeIndex, CheckerContext &C) const{
 
-    // std::cout << "All Fine till here 1\n";
     ProgramStateRef state = C.getState();
     SValBuilder &svalBuilder = C.getSValBuilder();
-    // std::cout << "All Fine till here 2\n";
     
     if(startIndex.isUnknownOrUndef()){
       std::cout << "Start Index has an unknown or undefined SVal \n";
@@ -193,7 +189,7 @@ public:
 };
 
 // Declaration of the Base Checker
-class PGASChecker : public Checker<check::PostCall, check::PreCall, check::Location> {
+class PGASChecker : public Checker<check::PostCall, check::PreCall> {
 
 private:
   void eventHandler(int handler, std::string &routineName,
@@ -204,8 +200,6 @@ private:
 public:
   void checkPostCall(const CallEvent &Call, CheckerContext &C) const;
   void checkPreCall(const CallEvent &Call, CheckerContext &C) const;
-  void checkLocation(SVal Loc, bool IsLoad, const Stmt *S,
-                      CheckerContext &C) const;
 
   // OpenShmemBugReporter BReporter;
   PGASChecker(routineHandlers (*addHandlers)());
@@ -280,7 +274,6 @@ ProgramStateRef markAsSynchronized(ProgramStateRef State, SymbolRef variable);
 ProgramStateRef addToArrayList(ProgramStateRef State, const MemRegion* arrayRegion);
 ProgramStateRef taintArray(ProgramStateRef State, const MemRegion* arrayRegion, SVal startIndex, SVal numElements, SVal nodeIndex);
 bool checkTrackerRange(CheckerContext &C, const MemRegion* arrayRegion, SVal startIndex, SVal numElements, SVal nodeIndex);
-// void printTheMap(ProgramStateRef State);
 bool regionExistsInMap(ProgramStateRef State, const MemRegion* arrayRegion);
 bool testMissingFree(ProgramStateRef State);
 bool checkMissingFree(ProgramStateRef State, const MemRegion* arrayRegion);

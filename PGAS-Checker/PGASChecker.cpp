@@ -50,9 +50,7 @@ int64_t getIntegerValueForArgument(const CallEvent &Call,
          } break;
          case SVal::LocKind:
          {
-            // std::cout << "Loc Kind\n";
             val = s.getAs<loc::ConcreteInt>().getValue().getValue().getExtValue();
-            // std::cout << "Loc Kind\n";
          } break;
          default: std::cout << "Some other kind\n";
          
@@ -88,18 +86,10 @@ void DefaultHandlers::handleMemoryAllocations(int handler,
 
     const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(Call.getDecl());
     if (!FD) return;
-    // get the invoked routine name
     std::string routineName = FD->getNameInfo().getAsString();
-    // std::cout << routineName << "-\n";
-
+    
     const MemRegion* ptrRegion = Call.getReturnValue().getAsRegion();
-    if(!ptrRegion){
-      std::cout << "Get As Region Failed\n";
-      return;
-    } else {
-        int64_t result = getIntegerValueForArgument(Call, C, 0); // TODO: Don't hardcode argIndex, calculate from backwards
-    }
-
+    
     // add unitilized variables to unitilized list
     State = Properties::addToUnintializedList(State, ptrRegion);
     // Properties::transformState(C, State);
@@ -138,9 +128,6 @@ void DefaultHandlers::handleBarriers(int handler, const CallEvent &Call,
   case PRE_CALL:
     break;
   case POST_CALL:
-    // iterate through all the track variables so far variables
-    // set each of the values to synchronized
-    // std::cout << "Barrier-1\n";
 
     if(barrierTracker == 0){
         ExplodedNode *errorNode = C.generateNonFatalErrorNode();
@@ -159,7 +146,6 @@ void DefaultHandlers::handleBarriers(int handler, const CallEvent &Call,
     for (PGASMapImpl::iterator I = trackedVariables.begin(),
                                E = trackedVariables.end();
          I != E; ++I) {
-      // std::cout << "Barrier-Y\n";
 
       SymbolRef symmetricVariable = I->first;
       // mark all symmetric variables as synchronized
@@ -167,24 +153,6 @@ void DefaultHandlers::handleBarriers(int handler, const CallEvent &Call,
       // important to invoke this each time/each variable
       Properties::transformState(C, State);
     }
-
-    // std::cout << "Barrier-2\n";
-
-    // RegionTrackerTy trMap = State->get<RegionTracker>();    
-
-    // for (RegionTrackerTy::iterator I = trMap.begin(),
-    //                            E = trMap.end();
-    //      I != E; ++I) {
-
-    //   std::cout << "Barrier-X\n";
-
-    //   const MemRegion* arrayBasePtr = I->first;
-    //   // reset all trackers
-    //   TrackingClass trackingClass;
-    //   State = State->set<RegionTracker>(arrayBasePtr, trackingClass);
-    //   // important to invoke this each time/each variable
-    //   Properties::transformState(C, State);
-    // }
 
     llvm::ImmutableMap<const clang::ento::MemRegion*, clang::ento::TrackingClass> map = State->get<RegionTracker>();
     for(llvm::ImmutableMap<const clang::ento::MemRegion*, clang::ento::TrackingClass>::iterator i = map.begin(); i != map.end(); i++){
@@ -224,30 +192,6 @@ void DefaultHandlers::handleNonBlockingWrites(int handler,
     return;
   }
 
-  // std::cout << "Has Globals Storage " << MR->hasGlobalsOrParametersStorage() << "\n";
-
-
-  // if(isa<MemSpaceRegion>(MR)){
-  //     std::cout << "Its a Memory Space Region\n";
-  // }
-
-  // if(isa<SubRegion>(MR)){
-  //     std::cout << "Its a Sub Region\n";
-  // }
-
-  // const MemRegion* BR = MR->getBaseRegion();
-
-  // std::cout << "BR : Has Globals Storage " << BR->hasGlobalsOrParametersStorage() << "\n";
-
-
-  // if(isa<MemSpaceRegion>(BR)){
-  //     std::cout << "BR : Its a Memory Space Region\n";
-  // }
-
-  // if(isa<SubRegion>(BR)){
-  //     std::cout << "BR : Its a Sub Region\n";
-  // }
-
   const ElementRegion *ER = dyn_cast<ElementRegion>(MR);
   if (!ER){
     std::cout << "Failed while casting into the Element Region. Returning!!";
@@ -257,18 +201,6 @@ void DefaultHandlers::handleNonBlockingWrites(int handler,
   switch (handler) {
   case PRE_CALL:
   {
-
-    // DefinedOrUnknownSVal Idx = ER->getIndex().castAs<DefinedOrUnknownSVal>();
-    // if(Idx.isConstant()){
-    //   // std::cout << "constant\n";
-    //   const int64_t val1 = Idx.castAs<nonloc::ConcreteInt>().getValue().getExtValue();
-
-    //   std::cout << val1 << "-----\n";
-
-    // } else {
-    //   std::cout << "not constant\n";
-    // }
-
     if(MR->hasGlobalsOrParametersStorage()){  //Also, use for static storage
         State = Properties::addToArrayList(State, ER->getSuperRegion());
         Properties::transformState(C, State);
@@ -276,12 +208,6 @@ void DefaultHandlers::handleNonBlockingWrites(int handler,
 
 
     const RefState *SS = State->get<CheckerState>(destVariable);
-
-    //   if (!SS) {
-    //   // TODOS: replace couts with bug reports
-    //     std::cout << ErrorMessages::VARIABLE_NOT_SYMMETRIC;
-    //     return;
-    // }
 
   }
     break;
@@ -299,38 +225,18 @@ void DefaultHandlers::handleNonBlockingWrites(int handler,
 
       // Get the array index 
       DefinedOrUnknownSVal Idx = ER->getIndex().castAs<DefinedOrUnknownSVal>();
-      // const int64_t index = Idx.castAs<nonloc::ConcreteInt>().getValue().getExtValue();
-      // if(Idx.isConstant()){
-      //   std::cout << "constant\n";
-      //   const int64_t val1 = Idx.castAs<nonloc::ConcreteInt>().getValue().getExtValue();
-
-      //   std::cout << val1 << "-----\n";
-
-      // } else {
-      //   std::cout << "not constant\n";
-      // }      
-      // Get the number of elements being tainted
       SVal numElements = C.getSVal(Call.getArgExpr(2));
       SVal nodeIndex = C.getSVal(Call.getArgExpr(3));
-      // int64_t num_elements = getIntegerValueForArgument(Call,C,2);
-      // int64_t nodeIndex = getIntegerValueForArgument(Call,C,3);
 
-      // std::cout << "Index: " << index << ", Num: " << num_elements << "\n";
-    
       const MemRegion* parentRegion = ER->getSuperRegion();
-      // const MemRegion* parentRegion = ER->getBaseRegion();
-    
+      
       State = Properties::taintArray(State, parentRegion, Idx, numElements, nodeIndex);
-      // Properties::printTheMap(State);
       Properties::transformState(C, State);
-    // Properties::printTheMap(State);
     }
 
     Properties::transformState(C, State);
     break;
   }
-
-  // std::cout << "Handle Non-Blocking Write end\n";
 }
 
 /**
@@ -369,21 +275,6 @@ void DefaultHandlers::handleReads(int handler, const CallEvent &Call,
   switch (handler) {
 
   case PRE_CALL:
-
-    // if the user is trying to access an unintialized bit of memory
-    // if (State->contains<UnintializedVariables>(symmetricVariable)) {
-    //   // TODOS: replace couts with bug reports
-    //   std::cout << ErrorMessages::ACCESS_UNINTIALIZED_VARIABLE;
-    //   return;
-    // }
-
-    // check if the symmetric memory is in an unsynchronized state
-    // if (SS && SS->isUnSynchronized()) {
-    //   // reportUnsynchronizedAccess(Call, C);
-    //   std::cout << ErrorMessages::UNSYNCHRONIZED_ACCESS;
-    //   return;
-    // }
-
     break;
 
   case POST_CALL:
@@ -395,45 +286,19 @@ void DefaultHandlers::handleReads(int handler, const CallEvent &Call,
     DefinedOrUnknownSVal Idx = ER->getIndex().castAs<DefinedOrUnknownSVal>();
     SVal num_elements = C.getSVal(Call.getArgExpr(2));
     SVal nodeIndex = C.getSVal(Call.getArgExpr(3));
-
-    // const int64_t index = Idx.castAs<nonloc::ConcreteInt>().getValue().getExtValue();
-    
-    // int64_t num_elements = getIntegerValueForArgument(Call,C,2);
-    // int64_t nodeIndex = getIntegerValueForArgument(Call,C,3);
-    
+ 
     const MemRegion* parentRegion = ER->getSuperRegion();
-    // Properties::printTheMap(State);
 
     bool result = Properties::checkTrackerRange(C, parentRegion, Idx, num_elements, nodeIndex);
     if(!result){
-      // std::cout << "\n*************************** The Read is \n";
-      // static CheckerProgramPointTag Tag("OSS-Checker", "Unsynchronized Read");
-
-      // ExplodedNode *ErrorNode{nullptr};
-      // ErrorNode = C.generateNonFatalErrorNode(State, &Tag);
-      // // ErrorNode = C.generateNonFatalErrorNode(State, &Tag);
-      // State = ErrorNode->getState();
-      // const CheckerBase *checker = this;
-      // reportUnsynchronizedAccess(checker, Call, C);
-
       ExplodedNode *errorNode = C.generateNonFatalErrorNode();
-  if (!errorNode)
-    return;
+      if (!errorNode) return;
 
-  if (!BT){
-    BT.reset(new BuiltinBug(
-          cb, "Unsynchronized Read",
-          "Full/Part of the array being read is unsynchronized"));
-  }
-  auto R =
-        std::make_unique<PathSensitiveBugReport>(*BT, BT->getDescription(), errorNode);
-  R->addRange(Call.getSourceRange());
-  C.emitReport(std::move(R));
-
-      // BReporter.reportUnsafeRead(MR,ErrorNode,C.getBugReporter());
-
+      if (!BT){ BT.reset(new BuiltinBug(cb, "Unsynchronized Read","Full/Part of the array being read is unsynchronized"));}
+      auto R = std::make_unique<PathSensitiveBugReport>(*BT, BT->getDescription(), errorNode);
+      R->addRange(Call.getSourceRange());
+      C.emitReport(std::move(R));
     }
-    // std::cout << "\n*************************** The Read is " << ((result)?"Safe\n":"Unsafe\n");
   }
   Properties::transformState(C, State);
 
@@ -477,7 +342,6 @@ void DefaultHandlers::handleMemoryDeallocations(int handler,
         std::make_unique<PathSensitiveBugReport>(*BT, BT->getDescription(), errorNode); 
   R->addRange(Call.getSourceRange());
   C.emitReport(std::move(R));
-  // return;
     } else {
       Properties::transformState(C, State);
     }
@@ -616,7 +480,6 @@ void PGASChecker::checkPostCall(const CallEvent &Call,
   // invoke the event handler to figure out the right implementation
   eventHandler(POST_CALL, routineName, Call, C);
 
-  // printTrackedVariables(C);
 }
 // pre call callback
 void PGASChecker::checkPreCall(const CallEvent &Call, CheckerContext &C) const {
@@ -632,19 +495,5 @@ void PGASChecker::checkPreCall(const CallEvent &Call, CheckerContext &C) const {
   // std::cout << "PreCall " << routineName << ":\n ";
   
   eventHandler(PRE_CALL, routineName, Call, C);
-
-}
-
-void PGASChecker::checkLocation(SVal Loc, bool IsLoad, const Stmt *S,
-                      CheckerContext &C) const {
-
-  // ProgramStateRef State = C.getState();
-  // const MemRegion *R = Loc.getAsRegion();
-  //   if (!R) return;
-  //   if(isa<GlobalsSpaceRegion>(R)){
-  //       std::cout << "Global Storage " << Properties::regionExistsInMap(State, R) << "\n";
-  //   } else {
-  //       std::cout << "Local Storage " << Properties::regionExistsInMap(State, R) << "\n";
-  //   }
 
 }
