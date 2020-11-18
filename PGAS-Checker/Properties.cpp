@@ -21,14 +21,12 @@ void Properties::transformState(CheckerContext &C, ProgramStateRef State) {
  * @param variable
  * @return ProgramStateRef
  */
-
 ProgramStateRef Properties::removeFromUnitializedList(ProgramStateRef State,
                                                       SymbolRef variable) {
   if (State->contains<UnintializedVariables>(variable)) {
-    // std::cout << "RU:It contains the variable\n";
     State = State->remove<UnintializedVariables>(variable);
   } else {
-    // std::cout << "RU:It doesn't contain the variable\n";
+    // TODO: Add the else if applicable
   }
   return State;
 }
@@ -40,13 +38,13 @@ ProgramStateRef Properties::removeFromUnitializedList(ProgramStateRef State,
  * @param variable
  * @return ProgramStateRef
  */
+//TODO: Change the function names
 ProgramStateRef Properties::removeFromFreeList(ProgramStateRef State,
                                                SymbolRef variable) {
   if (State->contains<FreedVariables>(variable)) {
-    // std::cout << "RF:It contains the variable\n";
     State = State->remove<FreedVariables>(variable);
   } else {
-    // std::cout << "RF:It doesn't contains the variable\n";
+    // TODO: Add the else if applicable
   }
   return State;
 }
@@ -71,7 +69,6 @@ ProgramStateRef Properties::addToFreeList(ProgramStateRef State,
 
 ProgramStateRef Properties::addToUnintializedList(ProgramStateRef State,
                                                   const MemRegion* arrayRegion) {
-  // State = State->add<UnintializedVariables>(variable);
   State = State->set<AllocationTracker>(arrayRegion, 1);
   return State;
 }
@@ -85,17 +82,7 @@ ProgramStateRef Properties::addToUnintializedList(ProgramStateRef State,
  */
 ProgramStateRef Properties::removeFromState(ProgramStateRef State,
                                             const MemRegion* arrayRegion) {
-  // const RefState *SS = State->get<CheckerState>(variable);
-  // if (SS) {
-  //   State = State->remove<CheckerState>(variable);
-  // }
-  // if((State->get<AllocationTracker>()).contains(arrayRegion)){
-  //   State = State->remove<AllocationTracker>(arrayRegion);
-  // }
-  // const RefState *SS = State->get<CheckerState>(variable);
-  // if (SS) {
-  //   State = State->remove<CheckerState>(variable);
-  // }
+  // TODO: Remove this function if no longer valid
   return State;
 }
 
@@ -128,23 +115,8 @@ ProgramStateRef Properties::markAsSynchronized(ProgramStateRef State,
 ProgramStateRef Properties::addToArrayList(ProgramStateRef State,
                                           const MemRegion* arrayRegion) {
   
-  // if((State->get<AllocationTracker>()).contains(arrayRegion)){
-  //   int64_t val = *(State->get<AllocationTracker>(arrayRegion));
-  //   if(val == 1) return NULL;
-  // }
-
   State = State->set<AllocationTracker>(arrayRegion, 1);
 
-  // auto it = (State->get<AllocationTracker>()).begin();
-  // for(;it != (State->get<AllocationTracker>()).end(); ++it){
-  //   std::cout << (it->first)->getString() << "," << it->second << "\n";
-  // }
-
-  // int64_t val = *(State->get<AllocationTracker>(arrayRegion));
-  // //   if(val == 0){
-  //     std::cout<<" Val Entered Properly " << val << "\n";
-  // //     return NULL;
-  // //   }
   TrackingClass t1;
   State = State->set<RegionTracker>(arrayRegion, t1);
   int count = 0;
@@ -183,7 +155,6 @@ bool Properties::checkTrackerRange(CheckerContext &C,
   
   ProgramStateRef State = C.getState();
   if(State->contains<RegionTracker>(arrayRegion)){
-    // std::cout << "This region is there\n";
     const TrackingClass *tracker = State->get<RegionTracker>(arrayRegion);
     if(tracker){
       DefinedOrUnknownSVal startIndex2 = startIndex.castAs<DefinedOrUnknownSVal>();
@@ -217,4 +188,75 @@ bool Properties::regionExistsInMap(ProgramStateRef State,
   return State->contains<RegionTracker>(arrayRegion);
 
 }
+
+void TrackingClass::updateTracker(DefinedOrUnknownSVal startIndex, DefinedOrUnknownSVal numElements, DefinedOrUnknownSVal nodeIndex) {
+
+    std::pair<DefinedOrUnknownSVal, DefinedOrUnknownSVal> p1 = std::make_pair(startIndex, numElements);
+    
+    if(startIndex.isUnknownOrUndef()){
+      std::cout << "Start Index has an unknown or undefined SVal \n";
+    }
+
+    if(numElements.isUnknownOrUndef()){
+      std::cout << "Number of elements has an unknown or undefined SVal \n";
+    }
+
+    const int64_t index = nodeIndex.castAs<nonloc::ConcreteInt>().getValue().getExtValue();
+
+    p1.first = startIndex;
+    p1.second = numElements;
+
+    auto it = trackingMap.find(index);
+    trackingVector tV;
+    if(it == trackingMap.end()){
+      trackingMap[index] = tV;
+    }
+    tV = trackingMap[index];
+    tV.push_back(p1);
+    trackingMap[index] = tV;
+  }
+
+  bool TrackingClass::isRangeEmpty(DefinedOrUnknownSVal startIndex, DefinedOrUnknownSVal numElements, DefinedOrUnknownSVal nodeIndex, CheckerContext &C) const{
+
+    ProgramStateRef state = C.getState();
+    SValBuilder &svalBuilder = C.getSValBuilder();
+    
+    if(startIndex.isUnknownOrUndef()){
+      std::cout << "Start Index has an unknown or undefined SVal \n";
+    }
+
+    if(numElements.isUnknownOrUndef()){
+      std::cout << "Number of elements has an unknown or undefined SVal \n";
+    }
+
+    const int64_t index = nodeIndex.castAs<nonloc::ConcreteInt>().getValue().getExtValue();
+
+    auto it1 = trackingMap.find(index);
+    if(it1 == trackingMap.end()){
+      std::cout << "Didn't find the tracking vector\n";
+      return true;
+    }
+    trackingVector tV = it1->second;
+
+    DefinedOrUnknownSVal endIndex = svalBuilder.evalBinOp(state, BO_Add, startIndex, numElements, svalBuilder.getArrayIndexType()).castAs<DefinedOrUnknownSVal>();
+    endIndex = svalBuilder.evalBinOp(state, BO_Sub, endIndex, svalBuilder.makeArrayIndex(1), svalBuilder.getArrayIndexType()).castAs<DefinedOrUnknownSVal>();
+    auto it = tV.begin();
+    for(; it != tV.end(); ++it){
+          DefinedOrUnknownSVal startPoint = (*it).first;
+          DefinedOrUnknownSVal numElements2 = (*it).second;
+          DefinedOrUnknownSVal endPoint = svalBuilder.evalBinOp(state, BO_Add, startPoint, numElements2, svalBuilder.getArrayIndexType()).castAs<DefinedOrUnknownSVal>();
+          endPoint = svalBuilder.evalBinOp(state, BO_Sub, endPoint, svalBuilder.makeArrayIndex(1), svalBuilder.getArrayIndexType()).castAs<DefinedOrUnknownSVal>();
+    
+          ProgramStateRef toRightof =  state->assumeInBound(startIndex, endPoint, false);
+          ProgramStateRef toLeftof =  state->assumeInBound(endIndex, startPoint, true);
+
+          ProgramStateRef toRightof2 =  state->assumeInBound(startPoint, endIndex, false);
+          ProgramStateRef toLeftof2 =  state->assumeInBound(endPoint, startIndex, true);
+
+          if(!toLeftof && !toRightof) return false;
+          if(!toLeftof2 && !toRightof2) return false;
+    }
+
+    return true;
+  }
 

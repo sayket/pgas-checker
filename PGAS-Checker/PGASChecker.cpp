@@ -6,32 +6,7 @@ using namespace ento;
 typedef std::unordered_map<int, Handler> defaultHandlers;
 defaultHandlers defaults;
 routineHandlers handlers;
-std::unique_ptr<BuiltinBug> BT;
-int barrierTracker = 0; // move into property layer, and add it as a property
-
-// Sample Bug Report
-// void reportUnsynchronizedAccess(
-//   const CheckerBase* cb, const CallEvent &Call, CheckerContext &C) {
-
-//   ExplodedNode *errorNode = C.generateNonFatalErrorNode();
-//   if (!errorNode)
-//     return;
-
-//   if (!BT){
-//     std::cout<<"1*\n";
-//     BT.reset(new BuiltinBug(
-//           cb, "Out-of-bound array access",
-//           "Access out-of-bound array element (buffer overflow)"));
-//   }
-//   std::cout<<"2*\n";
-//   auto R =
-//         std::make_unique<PathSensitiveBugReport>(*BT, BT->getDescription(), errorNode); 
-//         std::cout<<"3*\n";
-//   R->addRange(Call.getSourceRange()); 
-//   std::cout<<"4*\n";
-//   C.emitReport(std::move(R));
-//   std::cout<<"5*\n";
-// }
+int barrierTracker = 0; // TODO: move into property layer, and add it as a property
 
 /**
  * @brief Invoked on allocation of symmetric variable
@@ -62,11 +37,13 @@ void DefaultHandlers::handleMemoryAllocations(int handler,
     
     // add unitilized variables to unitilized list
     State = Properties::addToUnintializedList(State, ptrRegion);
-    // Properties::transformState(C, State);
+    
     // mark is synchronized by default
     State = Properties::markAsSynchronized(State, allocatedVariable);
+    
     // remove the variable from the freed list if allocated again
     State = Properties::removeFromFreeList(State, allocatedVariable);
+    
     // update the program state graph;
     // every time we make a change to the program state we need to invoke the
     // transform state
@@ -87,6 +64,8 @@ void DefaultHandlers::handleMemoryAllocations(int handler,
 void DefaultHandlers::handleBarriers(int handler, const CallEvent &Call,
                                      CheckerContext &C, const OpenShmemBugReporter* BReporter) {
 
+  //TODO: Fix this function itself
+
   ProgramStateRef State = C.getState();
   auto trackedVariables = State->get<CheckerState>();
 
@@ -96,15 +75,7 @@ void DefaultHandlers::handleBarriers(int handler, const CallEvent &Call,
   case POST_CALL:
 
     if(barrierTracker == 0){
-        // ExplodedNode *errorNode = C.generateNonFatalErrorNode();
-        // if (!errorNode) return;
-
-        // if (!BT){
-        //   BT.reset(new BuiltinBug(cb, "Barrier Not Needed","This barrier is unnecessary, please consider removing it"));
-        // }
-        // auto R = std::make_unique<PathSensitiveBugReport>(*BT, BT->getDescription(), errorNode);
-        // R->addRange(Call.getSourceRange());
-        // C.emitReport(std::move(R));
+        //TODO: Add the barrier tracker bug report
     }
 
     barrierTracker = 0;
@@ -122,8 +93,7 @@ void DefaultHandlers::handleBarriers(int handler, const CallEvent &Call,
 
     llvm::ImmutableMap<const clang::ento::MemRegion*, clang::ento::TrackingClass> map = State->get<RegionTracker>();
     for(llvm::ImmutableMap<const clang::ento::MemRegion*, clang::ento::TrackingClass>::iterator i = map.begin(); i != map.end(); i++){
-      // std::cout << "Barrier-X\n";
-
+      
       const MemRegion* arrayBasePtr = i->first;
       // reset all trackers
       TrackingClass trackingClass;
@@ -168,9 +138,6 @@ void DefaultHandlers::handleNonBlockingWrites(int handler,
         State = Properties::addToArrayList(State, ER->getSuperRegion());
         Properties::transformState(C, State);
     }
-
-
-    const RefState *SS = State->get<CheckerState>(destVariable);
 
   }
     break;
@@ -230,8 +197,6 @@ void DefaultHandlers::handleReads(int handler, const CallEvent &Call,
                                   CheckerContext &C, const OpenShmemBugReporter* BReporter) {
 
   ProgramStateRef State = C.getState();
-  SymbolRef symmetricVariable = Call.getArgSVal(0).getAsSymbol();
-  const RefState *SS = State->get<CheckerState>(symmetricVariable);
   const MemRegion *const MR = Call.getArgSVal(0).getAsRegion();
   const ElementRegion *const ER = dyn_cast<ElementRegion>(MR);
   
@@ -287,19 +252,8 @@ void DefaultHandlers::handleMemoryDeallocations(int handler,
     // should have the same effect
     State = Properties::addToFreeList(State, freedVariable);
     if(!State){
-  //     ExplodedNode *errorNode = C.generateNonFatalErrorNode();
-  // if (!errorNode)
-  //   return;
-
-  // if (!BT){
-  //   BT.reset(new BuiltinBug(
-  //         cb, "Double Free",
-  //         "Either this memory region was already free or never assigned"));
-  // }
-  // auto R =
-  //       std::make_unique<PathSensitiveBugReport>(*BT, BT->getDescription(), errorNode); 
-  // R->addRange(Call.getSourceRange());
-  // C.emitReport(std::move(R));
+      BReporter->reportDoubleFree(C, Call);
+      return;
     } else {
       Properties::transformState(C, State);
     }
@@ -318,13 +272,8 @@ void DefaultHandlers::handleFinalCalls(int handler,
   ProgramStateRef State = C.getState();
   bool result = Properties::testMissingFree(State);
   if(result){
-        // ExplodedNode *errorNode = C.generateNonFatalErrorNode();
-        // if (!BT){
-        //   BT.reset(new BuiltinBug( cb, "Missing Free","The memory region was not freed"));
-        // }
-        // auto R = std::make_unique<PathSensitiveBugReport>(*BT, BT->getDescription(), errorNode); 
-        // R->addRange(Call.getSourceRange());
-        // C.emitReport(std::move(R));
+        BReporter->reportNoFree(C, Call);
+        return;
     }
   }
 }
@@ -429,8 +378,6 @@ void PGASChecker::checkPostCall(const CallEvent &Call,
 
   // get the invoked routine name
   std::string routineName = FD->getNameInfo().getAsString();
-  
-  std::cout << "PostCall " << routineName << ":\n ";
   
   // invoke the event handler to figure out the right implementation
   eventHandler(POST_CALL, routineName, Call, C);

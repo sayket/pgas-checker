@@ -108,77 +108,9 @@ public:
 
   void Profile(llvm::FoldingSetNodeID &ID) const { ID.AddInteger(trackingMap.size()); }
   
-  void updateTracker(DefinedOrUnknownSVal startIndex, DefinedOrUnknownSVal numElements, DefinedOrUnknownSVal nodeIndex) {
+  bool isRangeEmpty(DefinedOrUnknownSVal startIndex, DefinedOrUnknownSVal numElements, DefinedOrUnknownSVal nodeIndex, CheckerContext &C) const;
 
-    std::pair<DefinedOrUnknownSVal, DefinedOrUnknownSVal> p1 = std::make_pair(startIndex, numElements);
-    
-    if(startIndex.isUnknownOrUndef()){
-      std::cout << "Start Index has an unknown or undefined SVal \n";
-    }
-
-    if(numElements.isUnknownOrUndef()){
-      std::cout << "Number of elements has an unknown or undefined SVal \n";
-    }
-
-    const int64_t index = nodeIndex.castAs<nonloc::ConcreteInt>().getValue().getExtValue();
-
-    p1.first = startIndex;
-    p1.second = numElements;
-
-    auto it = trackingMap.find(index);
-    trackingVector tV;
-    if(it == trackingMap.end()){
-      trackingMap[index] = tV;
-    }
-    tV = trackingMap[index];
-    tV.push_back(p1);
-    trackingMap[index] = tV;
-  }
-
-  bool isRangeEmpty(DefinedOrUnknownSVal startIndex, DefinedOrUnknownSVal numElements, DefinedOrUnknownSVal nodeIndex, CheckerContext &C) const{
-
-    ProgramStateRef state = C.getState();
-    SValBuilder &svalBuilder = C.getSValBuilder();
-    
-    if(startIndex.isUnknownOrUndef()){
-      std::cout << "Start Index has an unknown or undefined SVal \n";
-    }
-
-    if(numElements.isUnknownOrUndef()){
-      std::cout << "Number of elements has an unknown or undefined SVal \n";
-    }
-
-    const int64_t index = nodeIndex.castAs<nonloc::ConcreteInt>().getValue().getExtValue();
-
-    auto it1 = trackingMap.find(index);
-    if(it1 == trackingMap.end()){
-      std::cout << "Didn't find the tracking vector\n";
-      return true;
-    }
-    trackingVector tV = it1->second;
-    std::cout << tV.size() << "\n";
-
-    DefinedOrUnknownSVal endIndex = svalBuilder.evalBinOp(state, BO_Add, startIndex, numElements, svalBuilder.getArrayIndexType()).castAs<DefinedOrUnknownSVal>();
-    endIndex = svalBuilder.evalBinOp(state, BO_Sub, endIndex, svalBuilder.makeArrayIndex(1), svalBuilder.getArrayIndexType()).castAs<DefinedOrUnknownSVal>();
-    auto it = tV.begin();
-    for(; it != tV.end(); ++it){
-          DefinedOrUnknownSVal startPoint = (*it).first;
-          DefinedOrUnknownSVal numElements2 = (*it).second;
-          DefinedOrUnknownSVal endPoint = svalBuilder.evalBinOp(state, BO_Add, startPoint, numElements2, svalBuilder.getArrayIndexType()).castAs<DefinedOrUnknownSVal>();
-          endPoint = svalBuilder.evalBinOp(state, BO_Sub, endPoint, svalBuilder.makeArrayIndex(1), svalBuilder.getArrayIndexType()).castAs<DefinedOrUnknownSVal>();
-    
-          ProgramStateRef toRightof =  state->assumeInBound(startIndex, endPoint, false);
-          ProgramStateRef toLeftof =  state->assumeInBound(endIndex, startPoint, true);
-
-          ProgramStateRef toRightof2 =  state->assumeInBound(startPoint, endIndex, false);
-          ProgramStateRef toLeftof2 =  state->assumeInBound(endPoint, startIndex, true);
-
-          if(!toLeftof && !toRightof) return false;
-          if(!toLeftof2 && !toRightof2) return false;
-    }
-
-    return true;
-  }
+  void updateTracker(DefinedOrUnknownSVal startIndex, DefinedOrUnknownSVal numElements, DefinedOrUnknownSVal nodeIndex);
 
   bool operator==(const TrackingClass &X) const { return trackingMap == X.trackingMap; }
 };
