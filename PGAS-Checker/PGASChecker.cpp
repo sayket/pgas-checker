@@ -7,7 +7,6 @@ typedef std::unordered_map<int, Handler> defaultHandlers;
 defaultHandlers defaults;
 routineHandlers handlers;
 std::unique_ptr<BuiltinBug> BT;
-const CheckerBase* cb;
 int barrierTracker = 0; // move into property layer, and add it as a property
 
 // Sample Bug Report
@@ -34,35 +33,6 @@ int barrierTracker = 0; // move into property layer, and add it as a property
 //   std::cout<<"5*\n";
 // }
 
-int64_t getIntegerValueForArgument(const CallEvent &Call,
-                                              CheckerContext &C, int argIndex){
-  SVal s = C.getSVal(Call.getArgExpr(argIndex));
-    // const llvm::APSInt& s_val;
-    int64_t val = 0; // Will hold value of SVal
-
-  if (!s.isUnknownOrUndef() && s.isConstant()) {
-    switch (s.getBaseKind()) {
-        case SVal::NonLocKind: {
-            // std::cout << "Non Loc Kind\n";
-            val = s.getAs<nonloc::ConcreteInt>().getValue().getValue().getExtValue();
-            // std::cout << "Total Bytes Passed: " << val << "\n";
-            // std::cout << "Non Loc Kind\n";
-         } break;
-         case SVal::LocKind:
-         {
-            val = s.getAs<loc::ConcreteInt>().getValue().getValue().getExtValue();
-         } break;
-         default: std::cout << "Some other kind\n";
-         
-    }
-  } else {
-    std::cout << "S Val unknown or not constant";
-  }
-
-  return val;  
-}
-
-
 /**
  * @brief Invoked on allocation of symmetric variable
  *
@@ -72,7 +42,7 @@ int64_t getIntegerValueForArgument(const CallEvent &Call,
  */
 void DefaultHandlers::handleMemoryAllocations(int handler,
                                               const CallEvent &Call,
-                                              CheckerContext &C) {
+                                              CheckerContext &C, const OpenShmemBugReporter* BReporter) {
   ProgramStateRef State = C.getState();
   // get the reference to the allocated variable
   SymbolRef allocatedVariable = Call.getReturnValue().getAsSymbol();
@@ -102,10 +72,6 @@ void DefaultHandlers::handleMemoryAllocations(int handler,
     // transform state
     State = Properties::addToArrayList(State, ptrRegion);
     Properties::transformState(C, State);
-    auto it2 = (State->get<AllocationTracker>()).begin();
-      for(;it2 != (State->get<AllocationTracker>()).end(); ++it2){
-        std::cout << (it2->first)->getString() << "," << it2->second << " -----\n";
-      }
     break;
   }
 }
@@ -119,7 +85,7 @@ void DefaultHandlers::handleMemoryAllocations(int handler,
  * @param C
  */
 void DefaultHandlers::handleBarriers(int handler, const CallEvent &Call,
-                                     CheckerContext &C) {
+                                     CheckerContext &C, const OpenShmemBugReporter* BReporter) {
 
   ProgramStateRef State = C.getState();
   auto trackedVariables = State->get<CheckerState>();
@@ -130,15 +96,15 @@ void DefaultHandlers::handleBarriers(int handler, const CallEvent &Call,
   case POST_CALL:
 
     if(barrierTracker == 0){
-        ExplodedNode *errorNode = C.generateNonFatalErrorNode();
-        if (!errorNode) return;
+        // ExplodedNode *errorNode = C.generateNonFatalErrorNode();
+        // if (!errorNode) return;
 
-        if (!BT){
-          BT.reset(new BuiltinBug(cb, "Barrier Not Needed","This barrier is unnecessary, please consider removing it"));
-        }
-        auto R = std::make_unique<PathSensitiveBugReport>(*BT, BT->getDescription(), errorNode);
-        R->addRange(Call.getSourceRange());
-        C.emitReport(std::move(R));
+        // if (!BT){
+        //   BT.reset(new BuiltinBug(cb, "Barrier Not Needed","This barrier is unnecessary, please consider removing it"));
+        // }
+        // auto R = std::make_unique<PathSensitiveBugReport>(*BT, BT->getDescription(), errorNode);
+        // R->addRange(Call.getSourceRange());
+        // C.emitReport(std::move(R));
     }
 
     barrierTracker = 0;
@@ -165,9 +131,6 @@ void DefaultHandlers::handleBarriers(int handler, const CallEvent &Call,
       State = State->set<RegionTracker>(arrayBasePtr, trackingClass);
       Properties::transformState(C, State);
     }
-
-    // std::cout << "Barrier-3\n";
-
     break;
   }
 }
@@ -181,7 +144,7 @@ void DefaultHandlers::handleBarriers(int handler, const CallEvent &Call,
  */
 void DefaultHandlers::handleNonBlockingWrites(int handler,
                                               const CallEvent &Call,
-                                              CheckerContext &C) {
+                                              CheckerContext &C, const OpenShmemBugReporter* BReporter) {
   ProgramStateRef State = C.getState();
   
   SymbolRef destVariable = Call.getArgSVal(0).getAsSymbol();
@@ -247,7 +210,7 @@ void DefaultHandlers::handleNonBlockingWrites(int handler,
  * @param C
  */
 void DefaultHandlers::handleBlockingWrites(int handler, const CallEvent &Call,
-                                           CheckerContext &C) {
+                                           CheckerContext &C, const OpenShmemBugReporter* BReporter) {
   ProgramStateRef State = C.getState();
   SymbolRef destVariable = Call.getArgSVal(0).getAsSymbol();
 
@@ -264,7 +227,7 @@ void DefaultHandlers::handleBlockingWrites(int handler, const CallEvent &Call,
 
 // invoked on read routines such as shmem_get
 void DefaultHandlers::handleReads(int handler, const CallEvent &Call,
-                                  CheckerContext &C) {
+                                  CheckerContext &C, const OpenShmemBugReporter* BReporter) {
 
   ProgramStateRef State = C.getState();
   SymbolRef symmetricVariable = Call.getArgSVal(0).getAsSymbol();
@@ -291,13 +254,8 @@ void DefaultHandlers::handleReads(int handler, const CallEvent &Call,
 
     bool result = Properties::checkTrackerRange(C, parentRegion, Idx, num_elements, nodeIndex);
     if(!result){
-      ExplodedNode *errorNode = C.generateNonFatalErrorNode();
-      if (!errorNode) return;
-
-      if (!BT){ BT.reset(new BuiltinBug(cb, "Unsynchronized Read","Full/Part of the array being read is unsynchronized"));}
-      auto R = std::make_unique<PathSensitiveBugReport>(*BT, BT->getDescription(), errorNode);
-      R->addRange(Call.getSourceRange());
-      C.emitReport(std::move(R));
+      BReporter->reportUnsafeRead(C, Call);
+      return;
     }
   }
   Properties::transformState(C, State);
@@ -316,7 +274,7 @@ void DefaultHandlers::handleReads(int handler, const CallEvent &Call,
  */
 void DefaultHandlers::handleMemoryDeallocations(int handler,
                                                 const CallEvent &Call,
-                                                CheckerContext &C) {
+                                                CheckerContext &C, const OpenShmemBugReporter* BReporter) {
 
   ProgramStateRef State = C.getState();
   const MemRegion* freedVariable = Call.getArgSVal(0).getAsRegion()->getBaseRegion();
@@ -329,19 +287,19 @@ void DefaultHandlers::handleMemoryDeallocations(int handler,
     // should have the same effect
     State = Properties::addToFreeList(State, freedVariable);
     if(!State){
-      ExplodedNode *errorNode = C.generateNonFatalErrorNode();
-  if (!errorNode)
-    return;
+  //     ExplodedNode *errorNode = C.generateNonFatalErrorNode();
+  // if (!errorNode)
+  //   return;
 
-  if (!BT){
-    BT.reset(new BuiltinBug(
-          cb, "Double Free",
-          "Either this memory region was already free or never assigned"));
-  }
-  auto R =
-        std::make_unique<PathSensitiveBugReport>(*BT, BT->getDescription(), errorNode); 
-  R->addRange(Call.getSourceRange());
-  C.emitReport(std::move(R));
+  // if (!BT){
+  //   BT.reset(new BuiltinBug(
+  //         cb, "Double Free",
+  //         "Either this memory region was already free or never assigned"));
+  // }
+  // auto R =
+  //       std::make_unique<PathSensitiveBugReport>(*BT, BT->getDescription(), errorNode); 
+  // R->addRange(Call.getSourceRange());
+  // C.emitReport(std::move(R));
     } else {
       Properties::transformState(C, State);
     }
@@ -354,19 +312,19 @@ void DefaultHandlers::handleMemoryDeallocations(int handler,
 
 void DefaultHandlers::handleFinalCalls(int handler,
                                                 const CallEvent &Call,
-                                                CheckerContext &C) {
+                                                CheckerContext &C, const OpenShmemBugReporter* BReporter) {
   switch (handler) {
   case POST_CALL:
   ProgramStateRef State = C.getState();
   bool result = Properties::testMissingFree(State);
   if(result){
-        ExplodedNode *errorNode = C.generateNonFatalErrorNode();
-        if (!BT){
-          BT.reset(new BuiltinBug( cb, "Missing Free","The memory region was not freed"));
-        }
-        auto R = std::make_unique<PathSensitiveBugReport>(*BT, BT->getDescription(), errorNode); 
-        R->addRange(Call.getSourceRange());
-        C.emitReport(std::move(R));
+        // ExplodedNode *errorNode = C.generateNonFatalErrorNode();
+        // if (!BT){
+        //   BT.reset(new BuiltinBug( cb, "Missing Free","The memory region was not freed"));
+        // }
+        // auto R = std::make_unique<PathSensitiveBugReport>(*BT, BT->getDescription(), errorNode); 
+        // R->addRange(Call.getSourceRange());
+        // C.emitReport(std::move(R));
     }
   }
 }
@@ -378,7 +336,7 @@ void DefaultHandlers::handleFinalCalls(int handler,
  *
  * @param addHandlers
  */
-PGASChecker::PGASChecker(routineHandlers (*addHandlers)()){
+PGASChecker::PGASChecker(routineHandlers (*addHandlers)()):BReporter(*this){
   handlers = addHandlers();
   addDefaultHandlers();
 }
@@ -429,8 +387,6 @@ Handler PGASChecker::getDefaultHandler(Routine routineType) const {
  */
 void PGASChecker::eventHandler(int handler, std::string &routineName,
                                const CallEvent &Call, CheckerContext &C) const {
-  cb = this;
-
   Handler routineHandler = NULL;
   // get the corresponding iterator to the key
   routineHandlers::const_iterator iterator = handlers.find(routineName);
@@ -452,7 +408,7 @@ void PGASChecker::eventHandler(int handler, std::string &routineName,
 
     // finally invoke the routine handler
     if (routineHandler != NULL) {
-      routineHandler(handler, Call, C);
+      routineHandler(handler, Call, C, &(BReporter));
     } else {
       std::cout << "No implementation found for this routine\n";
     }
@@ -469,8 +425,7 @@ void PGASChecker::checkPostCall(const CallEvent &Call,
   // get the declaration of the invoked routine
   const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(Call.getDecl());
 
-  if (!FD)
-    return;
+  if (!FD) return;
 
   // get the invoked routine name
   std::string routineName = FD->getNameInfo().getAsString();
@@ -491,8 +446,6 @@ void PGASChecker::checkPreCall(const CallEvent &Call, CheckerContext &C) const {
 
   // get the name of the invoked routine
   std::string routineName = FD->getNameInfo().getAsString();
-
-  // std::cout << "PreCall " << routineName << ":\n ";
   
   eventHandler(PRE_CALL, routineName, Call, C);
 

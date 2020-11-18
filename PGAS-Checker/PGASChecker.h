@@ -6,7 +6,7 @@
 #include "clang/StaticAnalyzer/Core/Checker.h"
 #include "clang/StaticAnalyzer/Core/CheckerManager.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h"
-// #include "OpenShmemBugReporter.h"
+#include "OpenShmemBugReporter.h"
 #include <clang/StaticAnalyzer/Frontend/CheckerRegistry.h>
 #include <clang/StaticAnalyzer/Core/PathSensitive/CallEvent.h>
 #include <iostream>
@@ -14,13 +14,11 @@
 #include <utility>
 #include <bits/stdc++.h>
 
-#define BITSET_SIZE 25
-
 using namespace clang;
 using namespace ento;
 
 // event handlers for specific routines
-typedef void (*Handler)(int handler, const CallEvent &Call, CheckerContext &C);
+typedef void (*Handler)(int handler, const CallEvent &Call, CheckerContext &C, const OpenShmemBugReporter* BReporter);
 
 // pgas specific routine types
 typedef enum routines {
@@ -35,8 +33,6 @@ typedef enum routines {
 
 // ( non_blocking_routine_type, event_handler  )
 typedef std::pair<Routine, Handler> Pair;
-
-typedef std::bitset<BITSET_SIZE> Tracker; 
 
 // hold the mapping between routine name of a specific pgas programming model
 // routine, routine type and the event handler
@@ -109,9 +105,8 @@ private:
 
 public:
   std::map<int64_t, trackingVector> trackingMap;
-  Tracker tracker;
 
-  void Profile(llvm::FoldingSetNodeID &ID) const { ID.AddInteger(tracker.to_ulong()); }
+  void Profile(llvm::FoldingSetNodeID &ID) const { ID.AddInteger(trackingMap.size()); }
   
   void updateTracker(DefinedOrUnknownSVal startIndex, DefinedOrUnknownSVal numElements, DefinedOrUnknownSVal nodeIndex) {
 
@@ -201,7 +196,7 @@ public:
   void checkPostCall(const CallEvent &Call, CheckerContext &C) const;
   void checkPreCall(const CallEvent &Call, CheckerContext &C) const;
 
-  // OpenShmemBugReporter BReporter;
+  OpenShmemBugReporter BReporter;
   PGASChecker(routineHandlers (*addHandlers)());
 };
 
@@ -244,17 +239,17 @@ const std::string ACCESS_ARRAY_VARIABLE =
 // https://clang.llvm.org/doxygen/classclang_1_1ento_1_1CheckerContext.html
 namespace DefaultHandlers {
 void handleMemoryAllocations(int handler, const CallEvent &Call,
-                             CheckerContext &C);
-void handleBarriers(int handler, const CallEvent &Call, CheckerContext &C);
+                             CheckerContext &C, const OpenShmemBugReporter* BReporter);
+void handleBarriers(int handler, const CallEvent &Call, CheckerContext &C, const OpenShmemBugReporter* BReporter);
 void handleNonBlockingWrites(int hanndler, const CallEvent &Call,
-                             CheckerContext &C);
+                             CheckerContext &C, const OpenShmemBugReporter* BReporter);
 void handleBlockingWrites(int handler, const CallEvent &Call,
-                          CheckerContext &C);
-void handleReads(int handler, const CallEvent &Call, CheckerContext &C);
+                          CheckerContext &C, const OpenShmemBugReporter* BReporter);
+void handleReads(int handler, const CallEvent &Call, CheckerContext &C, const OpenShmemBugReporter* BReporter);
 void handleMemoryDeallocations(int handler, const CallEvent &Call,
-                               CheckerContext &C);
+                               CheckerContext &C, const OpenShmemBugReporter* BReporter);
 void handleFinalCalls(int handler, const CallEvent &Call,
-                               CheckerContext &C);
+                               CheckerContext &C, const OpenShmemBugReporter* BReporter);
 } // namespace DefaultHandlers
 
 // these are the common properties which shared across different PGAS
