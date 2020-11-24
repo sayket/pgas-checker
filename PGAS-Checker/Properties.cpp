@@ -159,7 +159,7 @@ bool Properties::checkTrackerRange(CheckerContext &C,
     if(tracker){
       DefinedOrUnknownSVal startIndex2 = startIndex.castAs<DefinedOrUnknownSVal>();
       DefinedOrUnknownSVal numElements2 = numElements.castAs<DefinedOrUnknownSVal>();
-       DefinedOrUnknownSVal nodeIndex2 = nodeIndex.castAs<DefinedOrUnknownSVal>();
+      DefinedOrUnknownSVal nodeIndex2 = nodeIndex.castAs<DefinedOrUnknownSVal>();
 
       bool flag = (*tracker).isRangeEmpty(startIndex2, numElements2, nodeIndex2, C);
       return flag;
@@ -187,6 +187,17 @@ bool Properties::regionExistsInMap(ProgramStateRef State,
                                           const MemRegion* arrayRegion){
   return State->contains<RegionTracker>(arrayRegion);
 
+}
+
+ProgramStateRef Properties::clearMap(ProgramStateRef State){
+    llvm::ImmutableMap<const clang::ento::MemRegion*, clang::ento::TrackingClass> map = State->get<RegionTracker>();
+    for(llvm::ImmutableMap<const clang::ento::MemRegion*, clang::ento::TrackingClass>::iterator i = map.begin(); i != map.end(); i++){
+        const clang::ento::MemRegion* nextRegion = i->first;
+        clang::ento::TrackingClass t2 = i->second;
+        t2.clearTrackingMap();
+        State = State->set<RegionTracker>(nextRegion, t2);
+    }    
+    return State;
 }
 
 void TrackingClass::updateTracker(DefinedOrUnknownSVal startIndex, DefinedOrUnknownSVal numElements, DefinedOrUnknownSVal nodeIndex) {
@@ -233,7 +244,6 @@ void TrackingClass::updateTracker(DefinedOrUnknownSVal startIndex, DefinedOrUnkn
 
     auto it1 = trackingMap.find(index);
     if(it1 == trackingMap.end()){
-      std::cout << "Didn't find the tracking vector\n";
       return true;
     }
     trackingVector tV = it1->second;
@@ -258,5 +268,9 @@ void TrackingClass::updateTracker(DefinedOrUnknownSVal startIndex, DefinedOrUnkn
     }
 
     return true;
+  }
+
+  void TrackingClass::clearTrackingMap(){
+    (this->trackingMap).clear();
   }
 

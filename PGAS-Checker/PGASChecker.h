@@ -112,6 +112,8 @@ public:
 
   void updateTracker(DefinedOrUnknownSVal startIndex, DefinedOrUnknownSVal numElements, DefinedOrUnknownSVal nodeIndex);
 
+  void clearTrackingMap();
+
   bool operator==(const TrackingClass &X) const { return trackingMap == X.trackingMap; }
 };
 
@@ -199,6 +201,7 @@ ProgramStateRef removeFromState(ProgramStateRef State, const MemRegion* arrayReg
 ProgramStateRef markAsUnsynchronized(ProgramStateRef State, SymbolRef variable);
 ProgramStateRef markAsSynchronized(ProgramStateRef State, SymbolRef variable);
 ProgramStateRef addToArrayList(ProgramStateRef State, const MemRegion* arrayRegion);
+ProgramStateRef clearMap(ProgramStateRef State);
 ProgramStateRef taintArray(ProgramStateRef State, const MemRegion* arrayRegion, SVal startIndex, SVal numElements, SVal nodeIndex);
 bool checkTrackerRange(CheckerContext &C, const MemRegion* arrayRegion, SVal startIndex, SVal numElements, SVal nodeIndex);
 bool regionExistsInMap(ProgramStateRef State, const MemRegion* arrayRegion);

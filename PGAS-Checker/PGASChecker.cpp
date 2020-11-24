@@ -64,43 +64,18 @@ void DefaultHandlers::handleMemoryAllocations(int handler,
 void DefaultHandlers::handleBarriers(int handler, const CallEvent &Call,
                                      CheckerContext &C, const OpenShmemBugReporter* BReporter) {
 
-  //TODO: Fix this function itself
+  //TODO: Add Extra Barrier Tracker in this function
 
   ProgramStateRef State = C.getState();
-  auto trackedVariables = State->get<CheckerState>();
 
   switch (handler) {
   case PRE_CALL:
     break;
   case POST_CALL:
 
-    if(barrierTracker == 0){
-        //TODO: Add the barrier tracker bug report
-    }
+    State = Properties::clearMap(State);
+    Properties::transformState(C, State);
 
-    barrierTracker = 0;
-
-    for (PGASMapImpl::iterator I = trackedVariables.begin(),
-                               E = trackedVariables.end();
-         I != E; ++I) {
-
-      SymbolRef symmetricVariable = I->first;
-      // mark all symmetric variables as synchronized
-      State = Properties::markAsSynchronized(State, symmetricVariable);
-      // important to invoke this each time/each variable
-      Properties::transformState(C, State);
-    }
-
-    llvm::ImmutableMap<const clang::ento::MemRegion*, clang::ento::TrackingClass> map = State->get<RegionTracker>();
-    for(llvm::ImmutableMap<const clang::ento::MemRegion*, clang::ento::TrackingClass>::iterator i = map.begin(); i != map.end(); i++){
-      
-      const MemRegion* arrayBasePtr = i->first;
-      // reset all trackers
-      TrackingClass trackingClass;
-      State = State->remove<RegionTracker>(arrayBasePtr);
-      State = State->set<RegionTracker>(arrayBasePtr, trackingClass);
-      Properties::transformState(C, State);
-    }
     break;
   }
 }
