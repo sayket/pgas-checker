@@ -14,6 +14,7 @@ int barrierTracker = 0; // TODO: move into property layer, and add it as a prope
  * @param handler
  * @param Call
  * @param C
+ * @param BReporter
  */
 void DefaultHandlers::handleMemoryAllocations(int handler,
                                               const CallEvent &Call,
@@ -60,6 +61,7 @@ void DefaultHandlers::handleMemoryAllocations(int handler,
  * @param handler
  * @param Call
  * @param C
+ * @param BReporter
  */
 void DefaultHandlers::handleBarriers(int handler, const CallEvent &Call,
                                      CheckerContext &C, const OpenShmemBugReporter* BReporter) {
@@ -86,15 +88,17 @@ void DefaultHandlers::handleBarriers(int handler, const CallEvent &Call,
  * @param handler
  * @param Call
  * @param C
+ * @param BReporter
  */
 void DefaultHandlers::handleNonBlockingWrites(int handler,
                                               const CallEvent &Call,
                                               CheckerContext &C, const OpenShmemBugReporter* BReporter) {
-  ProgramStateRef State = C.getState();
   
-  SymbolRef destVariable = Call.getArgSVal(0).getAsSymbol();
+  int memRegionArgIndex = 0, numElementsArgIndex = 2, rankArgIndex = 3;
+  ProgramStateRef State = C.getState();
+  SymbolRef destVariable = Call.getArgSVal(memRegionArgIndex).getAsSymbol();
 
-  const MemRegion* MR = Call.getArgSVal(0).getAsRegion();
+  const MemRegion* MR = Call.getArgSVal(memRegionArgIndex).getAsRegion();
   if(!MR) {
     std::cout << "Failed while getting the Memory Region. Returning!!";
     return;
@@ -130,8 +134,8 @@ void DefaultHandlers::handleNonBlockingWrites(int handler,
 
       // Get the array index 
       DefinedOrUnknownSVal Idx = ER->getIndex().castAs<DefinedOrUnknownSVal>();
-      SVal numElements = C.getSVal(Call.getArgExpr(2));
-      SVal nodeIndex = C.getSVal(Call.getArgExpr(3));
+      SVal numElements = C.getSVal(Call.getArgExpr(numElementsArgIndex));
+      SVal nodeIndex = C.getSVal(Call.getArgExpr(rankArgIndex));
 
       const MemRegion* parentRegion = ER->getSuperRegion();
       
@@ -150,11 +154,13 @@ void DefaultHandlers::handleNonBlockingWrites(int handler,
  * @param handler
  * @param Call
  * @param C
+ * @param BReporter
  */
 void DefaultHandlers::handleBlockingWrites(int handler, const CallEvent &Call,
                                            CheckerContext &C, const OpenShmemBugReporter* BReporter) {
+  int memRegionArgIndex = 0;
   ProgramStateRef State = C.getState();
-  SymbolRef destVariable = Call.getArgSVal(0).getAsSymbol();
+  SymbolRef destVariable = Call.getArgSVal(memRegionArgIndex).getAsSymbol();
 
   switch (handler) {
   case PRE_CALL:
@@ -167,12 +173,21 @@ void DefaultHandlers::handleBlockingWrites(int handler, const CallEvent &Call,
   }
 }
 
-// invoked on read routines such as shmem_get
+/**
+ * @brief invoked on synchronization barriers; this is specifically for
+ * barrier_all
+ *
+ * @param handler
+ * @param Call
+ * @param C
+ * @param BReporter
+ */
 void DefaultHandlers::handleReads(int handler, const CallEvent &Call,
                                   CheckerContext &C, const OpenShmemBugReporter* BReporter) {
 
+  int memRegionArgIndex = 0, numElementsArgIndex = 2, rankArgIndex = 3; 
   ProgramStateRef State = C.getState();
-  const MemRegion *const MR = Call.getArgSVal(0).getAsRegion();
+  const MemRegion *const MR = Call.getArgSVal(memRegionArgIndex).getAsRegion();
   const ElementRegion *const ER = dyn_cast<ElementRegion>(MR);
   
   switch (handler) {
@@ -187,8 +202,8 @@ void DefaultHandlers::handleReads(int handler, const CallEvent &Call,
     } else {
 
     DefinedOrUnknownSVal Idx = ER->getIndex().castAs<DefinedOrUnknownSVal>();
-    SVal num_elements = C.getSVal(Call.getArgExpr(2));
-    SVal nodeIndex = C.getSVal(Call.getArgExpr(3));
+    SVal num_elements = C.getSVal(Call.getArgExpr(numElementsArgIndex));
+    SVal nodeIndex = C.getSVal(Call.getArgExpr(rankArgIndex));
  
     const MemRegion* parentRegion = ER->getSuperRegion();
 
@@ -211,13 +226,14 @@ void DefaultHandlers::handleReads(int handler, const CallEvent &Call,
  * @param handler
  * @param Call
  * @param C
+ * @param BReporter
  */
 void DefaultHandlers::handleMemoryDeallocations(int handler,
                                                 const CallEvent &Call,
                                                 CheckerContext &C, const OpenShmemBugReporter* BReporter) {
-
+  int memRegionArgIndex = 0;
   ProgramStateRef State = C.getState();
-  const MemRegion* freedVariable = Call.getArgSVal(0).getAsRegion()->getBaseRegion();
+  const MemRegion* freedVariable = Call.getArgSVal(memRegionArgIndex).getAsRegion()->getBaseRegion();
 
   switch (handler) {
   case PRE_CALL:
@@ -239,6 +255,15 @@ void DefaultHandlers::handleMemoryDeallocations(int handler,
   }
 }
 
+
+/**
+ * @brief invoked when the ending shmem routines as called like shmem_finalize
+ *
+ * @param handler
+ * @param Call
+ * @param C
+ * @param BReporter
+ */
 void DefaultHandlers::handleFinalCalls(int handler,
                                                 const CallEvent &Call,
                                                 CheckerContext &C, const OpenShmemBugReporter* BReporter) {
@@ -338,6 +363,7 @@ void PGASChecker::eventHandler(int handler, std::string &routineName,
     }
   }
 }
+
 /**
  * @brief Gets called as a post callback on invocation of a routine
  *
