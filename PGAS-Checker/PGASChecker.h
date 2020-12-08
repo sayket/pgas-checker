@@ -117,6 +117,19 @@ public:
   bool operator==(const TrackingClass &X) const { return trackingMap == X.trackingMap; }
 };
 
+
+class RangeClass {
+
+  private:
+    ExplodedNode* errorNode;
+
+  public:
+    RangeClass(ExplodedNode* errorNode){ this->errorNode = errorNode;}
+    ExplodedNode* getErrorNode(){return errorNode; }
+    void Profile(llvm::FoldingSetNodeID &ID) const { ID.AddInteger(errorNode->getID()); }
+    bool operator==(const RangeClass &X) const { return errorNode == X.errorNode; }
+};
+
 // Declaration of the Base Checker
 class PGASChecker : public Checker<check::PostCall, check::PreCall> {
 
@@ -146,7 +159,7 @@ REGISTER_TRAIT_WITH_PROGRAMSTATE(ArrayRegions, PGASMemRegionsImpl)
 //map of tracked indices
 REGISTER_MAP_WITH_PROGRAMSTATE(RegionTracker, const MemRegion*, TrackingClass) 
 //map of allocated/free variables
-REGISTER_MAP_WITH_PROGRAMSTATE(AllocationTracker, const MemRegion*, int64_t) 
+REGISTER_MAP_WITH_PROGRAMSTATE(AllocationTracker, const MemRegion*, RangeClass) 
 
 enum HANDLERS { PRE_CALL = 0, POST_CALL = 1 };
 
@@ -194,15 +207,16 @@ void transformState(CheckerContext &C, ProgramStateRef State);
 ProgramStateRef removeFromUnitializedList(ProgramStateRef State,
                                           SymbolRef variable);
 ProgramStateRef removeFromFreeList(ProgramStateRef State, SymbolRef variable);
-ProgramStateRef addToFreeList(ProgramStateRef State, const MemRegion* arrayRegion);
-ProgramStateRef addToUnintializedList(ProgramStateRef State,
-                                      const MemRegion* arrayRegion);
+ProgramStateRef freeThisAllocation(ProgramStateRef State, const MemRegion* arrayRegion);
+ProgramStateRef recordThisAllocation(ProgramStateRef State,
+                                      const MemRegion* arrayRegion, ExplodedNode *errorNode);
 ProgramStateRef removeFromState(ProgramStateRef State, const MemRegion* arrayRegion);
 ProgramStateRef markAsUnsynchronized(ProgramStateRef State, SymbolRef variable);
 ProgramStateRef markAsSynchronized(ProgramStateRef State, SymbolRef variable);
 ProgramStateRef addToArrayList(ProgramStateRef State, const MemRegion* arrayRegion);
 ProgramStateRef clearMap(ProgramStateRef State);
 ProgramStateRef taintArray(ProgramStateRef State, const MemRegion* arrayRegion, SVal startIndex, SVal numElements, SVal nodeIndex);
+RangeClass getMissingFreeAllocation(ProgramStateRef State);
 bool checkTrackerRange(CheckerContext &C, const MemRegion* arrayRegion, SVal startIndex, SVal numElements, SVal nodeIndex);
 bool regionExistsInMap(ProgramStateRef State, const MemRegion* arrayRegion);
 bool testMissingFree(ProgramStateRef State);

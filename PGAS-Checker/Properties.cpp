@@ -56,20 +56,19 @@ ProgramStateRef Properties::removeFromFreeList(ProgramStateRef State,
  * @param variable
  * @return ProgramStateRef
  */
-ProgramStateRef Properties::addToFreeList(ProgramStateRef State,
+ProgramStateRef Properties::freeThisAllocation(ProgramStateRef State,
                                           const MemRegion* arrayRegion) {
-  const int64_t* val = (State->get<AllocationTracker>(arrayRegion));
-  int64_t result = (*val);
-    if(result == 0){
-      return NULL;
-    }
-  State = State->set<AllocationTracker>(arrayRegion, 0);
-  return State;
+  if(State->contains<AllocationTracker>(arrayRegion)){
+    State = State->remove<AllocationTracker>(arrayRegion);
+    return State;
+  }
+  return NULL;
 }
 
-ProgramStateRef Properties::addToUnintializedList(ProgramStateRef State,
-                                                  const MemRegion* arrayRegion) {
-  State = State->set<AllocationTracker>(arrayRegion, 1);
+ProgramStateRef Properties::recordThisAllocation(ProgramStateRef State,
+                                                  const MemRegion* arrayRegion, ExplodedNode *errorNode) {
+  RangeClass rangeClass(errorNode);
+  State = State->set<AllocationTracker>(arrayRegion, rangeClass);
   return State;
 }
 
@@ -115,8 +114,6 @@ ProgramStateRef Properties::markAsSynchronized(ProgramStateRef State,
 ProgramStateRef Properties::addToArrayList(ProgramStateRef State,
                                           const MemRegion* arrayRegion) {
   
-  State = State->set<AllocationTracker>(arrayRegion, 1);
-
   TrackingClass t1;
   State = State->set<RegionTracker>(arrayRegion, t1);
   int count = 0;
@@ -174,13 +171,14 @@ bool Properties::checkTrackerRange(CheckerContext &C,
 }
 
 bool Properties::testMissingFree(ProgramStateRef State){
-  auto it = (State->get<AllocationTracker>()).begin();
-  for(;it != (State->get<AllocationTracker>()).end(); ++it){
-    if((it->second) == 1){
-        return true;
-    }
-  }
-  return false;
+  auto it_begin = (State->get<AllocationTracker>()).begin();
+  auto it_end = (State->get<AllocationTracker>()).end();
+  return (it_begin != it_end);
+}
+
+RangeClass Properties::getMissingFreeAllocation(ProgramStateRef State){
+  auto it_begin = (State->get<AllocationTracker>()).begin();
+  return (it_begin)->second;
 }
 
 bool Properties::regionExistsInMap(ProgramStateRef State,

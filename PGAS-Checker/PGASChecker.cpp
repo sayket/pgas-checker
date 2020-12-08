@@ -37,7 +37,7 @@ void DefaultHandlers::handleMemoryAllocations(int handler,
     const MemRegion* ptrRegion = Call.getReturnValue().getAsRegion();
     
     // add unitilized variables to unitilized list
-    State = Properties::addToUnintializedList(State, ptrRegion);
+    State = Properties::recordThisAllocation(State, ptrRegion, C.generateErrorNode());
     
     // mark is synchronized by default
     State = Properties::markAsSynchronized(State, allocatedVariable);
@@ -241,7 +241,7 @@ void DefaultHandlers::handleMemoryDeallocations(int handler,
   case POST_CALL:
     // add it to the freed variable set; since it is adding it multiple times
     // should have the same effect
-    State = Properties::addToFreeList(State, freedVariable);
+    State = Properties::freeThisAllocation(State, freedVariable);
     if(!State){
       BReporter->reportDoubleFree(C, Call);
       return;
@@ -272,7 +272,8 @@ void DefaultHandlers::handleFinalCalls(int handler,
   ProgramStateRef State = C.getState();
   bool result = Properties::testMissingFree(State);
   if(result){
-        BReporter->reportNoFree(C, Call);
+        RangeClass rangeClass = Properties::getMissingFreeAllocation(State);
+        BReporter->reportNoFree(C, rangeClass.getErrorNode());
         return;
     }
   }

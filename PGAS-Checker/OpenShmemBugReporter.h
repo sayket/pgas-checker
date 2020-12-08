@@ -35,11 +35,9 @@ public:
       	C.emitReport(std::move(R));
 	}
 
-	void reportNoFree(CheckerContext &C,const CallEvent &Call) const {
-		ExplodedNode *errorNode = C.generateErrorNode();
-      	if (!errorNode) return;
+	void reportNoFree(CheckerContext &C, ExplodedNode* errorNode) const {
+		if (!errorNode) return;
       	auto R = std::make_unique<PathSensitiveBugReport>(*NoFreeBug, NoFreeBug->getDescription(), errorNode);
-      	R->addRange(Call.getSourceRange());
       	C.emitReport(std::move(R));
 	}
 
