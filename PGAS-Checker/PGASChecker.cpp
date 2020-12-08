@@ -113,9 +113,16 @@ void DefaultHandlers::handleNonBlockingWrites(int handler,
   switch (handler) {
   case PRE_CALL:
   {
-    if(MR->hasGlobalsOrParametersStorage()){  //Also, use for static storage
+    // Checks if the Memory Region is global or static
+    if(MR->hasGlobalsOrParametersStorage()){
         State = Properties::addToArrayList(State, ER->getSuperRegion());
         Properties::transformState(C, State);
+    }
+
+    bool isRegionSymmetric = Properties::isMemRegionSymmetric(State, ER->getSuperRegion());
+    if(!isRegionSymmetric){
+      BReporter->reportUnSymmetricAccess(C, Call);
+      return;
     }
 
   }
@@ -189,10 +196,16 @@ void DefaultHandlers::handleReads(int handler, const CallEvent &Call,
   ProgramStateRef State = C.getState();
   const MemRegion *const MR = Call.getArgSVal(memRegionArgIndex).getAsRegion();
   const ElementRegion *const ER = dyn_cast<ElementRegion>(MR);
-  
+  bool isRegionSymmetric = Properties::isMemRegionSymmetric(State, ER->getSuperRegion());
+    
   switch (handler) {
 
   case PRE_CALL:
+    
+    if(!isRegionSymmetric){
+      BReporter->reportUnSymmetricAccess(C, Call);
+      return;
+    }
     break;
 
   case POST_CALL:

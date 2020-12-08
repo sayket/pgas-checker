@@ -184,7 +184,13 @@ RangeClass Properties::getMissingFreeAllocation(ProgramStateRef State){
 bool Properties::regionExistsInMap(ProgramStateRef State,
                                           const MemRegion* arrayRegion){
   return State->contains<RegionTracker>(arrayRegion);
+}
 
+bool Properties::isMemRegionSymmetric(ProgramStateRef State, const MemRegion* arrayRegion){
+  bool regionExistsInTrackingMap = regionExistsInMap(State, arrayRegion);
+  bool isStaticOrGlobal = (arrayRegion->hasGlobalsOrParametersStorage());
+
+  return (isStaticOrGlobal || regionExistsInTrackingMap);
 }
 
 ProgramStateRef Properties::clearMap(ProgramStateRef State){

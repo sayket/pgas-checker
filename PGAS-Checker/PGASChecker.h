@@ -221,6 +221,7 @@ bool checkTrackerRange(CheckerContext &C, const MemRegion* arrayRegion, SVal sta
 bool regionExistsInMap(ProgramStateRef State, const MemRegion* arrayRegion);
 bool testMissingFree(ProgramStateRef State);
 bool checkMissingFree(ProgramStateRef State, const MemRegion* arrayRegion);
+bool isMemRegionSymmetric(ProgramStateRef State, const MemRegion* arrayRegion);
 } // namespace Properties
 
 
