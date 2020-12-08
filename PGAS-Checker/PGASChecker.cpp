@@ -206,29 +206,31 @@ void DefaultHandlers::handleReads(int handler, const CallEvent &Call,
       BReporter->reportUnSymmetricAccess(C, Call);
       return;
     }
-    break;
-
-  case POST_CALL:
 
     if (!ER){
       std::cout << "Not an element region\n";
     } else {
 
-    DefinedOrUnknownSVal Idx = ER->getIndex().castAs<DefinedOrUnknownSVal>();
-    SVal num_elements = C.getSVal(Call.getArgExpr(numElementsArgIndex));
-    SVal nodeIndex = C.getSVal(Call.getArgExpr(rankArgIndex));
+      DefinedOrUnknownSVal Idx = ER->getIndex().castAs<DefinedOrUnknownSVal>();
+      SVal num_elements = C.getSVal(Call.getArgExpr(numElementsArgIndex));
+      SVal nodeIndex = C.getSVal(Call.getArgExpr(rankArgIndex));
  
-    const MemRegion* parentRegion = ER->getSuperRegion();
+      const MemRegion* parentRegion = ER->getSuperRegion();
 
-    bool result = Properties::checkTrackerRange(C, parentRegion, Idx, num_elements, nodeIndex);
-    if(!result){
-      BReporter->reportUnsafeRead(C, Call);
-      return;
+      bool result = Properties::checkTrackerRange(C, parentRegion, Idx, num_elements, nodeIndex);
+      if(!result){
+        BReporter->reportUnsafeRead(C, Call);
+        return;
+      }
     }
-  }
-  Properties::transformState(C, State);
+    
+    Properties::transformState(C, State);
 
     break;
+
+  case POST_CALL:
+    break;
+
   }
 
 }
@@ -281,14 +283,18 @@ void DefaultHandlers::handleFinalCalls(int handler,
                                                 const CallEvent &Call,
                                                 CheckerContext &C, const OpenShmemBugReporter* BReporter) {
   switch (handler) {
-  case POST_CALL:
-  ProgramStateRef State = C.getState();
-  bool result = Properties::testMissingFree(State);
-  if(result){
+
+  case PRE_CALL;
+    ProgramStateRef State = C.getState();
+    bool result = Properties::testMissingFree(State);
+    if(result){
         RangeClass rangeClass = Properties::getMissingFreeAllocation(State);
         BReporter->reportNoFree(C, rangeClass.getErrorNode());
         return;
     }
+    break;  
+  case POST_CALL:
+  
   }
 }
 
