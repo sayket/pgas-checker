@@ -11,6 +11,30 @@ void Properties::transformState(CheckerContext &C, ProgramStateRef State) {
   C.addTransition(State);
 }
 
+
+int64_t getIntegerValueForArgument(SVal s){
+  
+  int64_t val = -1; // Will hold value of SVal
+
+  if (!s.isUnknownOrUndef() && s.isConstant()) {
+    switch (s.getBaseKind()) {
+        case SVal::NonLocKind: {
+            val = s.getAs<nonloc::ConcreteInt>().getValue().getValue().getExtValue();
+         } break;
+         case SVal::LocKind:
+         {
+            val = s.getAs<loc::ConcreteInt>().getValue().getValue().getExtValue();
+         } break;
+         default: std::cout << "Some other kind\n";
+
+    }
+  } else {
+    std::cout << "S Val unknown or not constant";
+  }
+
+  return val;  
+}
+
 /**
  * @brief
  * remember program state is an immutable data structure, so it is neccessary to
@@ -60,6 +84,7 @@ ProgramStateRef Properties::freeThisAllocation(ProgramStateRef State,
                                           const MemRegion* arrayRegion) {
   if(State->contains<AllocationTracker>(arrayRegion)){
     State = State->remove<AllocationTracker>(arrayRegion);
+    State = State->remove<RegionTracker>(arrayRegion);
     return State;
   }
   return NULL;
@@ -145,6 +170,12 @@ ProgramStateRef Properties::taintArray(ProgramStateRef State,
     std::cout << "This region is not in list\n";    
   }
   return State;
+}
+
+bool Properties::isMemoryAllocationValid(SVal argVal){
+
+  int64_t allocationSize = getIntegerValueForArgument(argVal);
+  return (allocationSize >= 0);
 }
 
 bool Properties::checkTrackerRange(CheckerContext &C,

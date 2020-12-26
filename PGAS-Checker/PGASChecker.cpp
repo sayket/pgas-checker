@@ -284,7 +284,7 @@ void DefaultHandlers::handleFinalCalls(int handler,
                                                 CheckerContext &C, const OpenShmemBugReporter* BReporter) {
   switch (handler) {
 
-  case PRE_CALL;
+  case PRE_CALL:
     ProgramStateRef State = C.getState();
     bool result = Properties::testMissingFree(State);
     if(result){
@@ -292,9 +292,7 @@ void DefaultHandlers::handleFinalCalls(int handler,
         BReporter->reportNoFree(C, rangeClass.getErrorNode());
         return;
     }
-    break;  
-  case POST_CALL:
-  
+    break;
   }
 }
 
