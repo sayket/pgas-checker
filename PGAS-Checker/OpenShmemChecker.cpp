@@ -33,6 +33,26 @@ void handleMemoryReallocations(int handler, const CallEvent &Call,
   }
 }
 
+void handleMemoryAlignments(int handler, const CallEvent &Call,
+                                                CheckerContext &C, const OpenShmemBugReporter* BReporter){
+
+  int memAlignmentIndex = 0, memRegionSizeIndex = 1;
+  ProgramStateRef State = C.getState();
+  const SVal memRegionSize = C.getSVal(Call.getArgExpr(memRegionSizeIndex));
+
+  switch (handler) {
+
+  case PRE_CALL:
+    bool isSizeValid = Properties::isMemoryAllocationValid(memRegionSize);
+    if(!isSizeValid){
+        BReporter->reportInvalidSizeEntry(C, Call);
+        return;
+    }
+
+    break;
+  }
+}
+
 
 /**
  * @brief Provide implementation of routine types
@@ -56,6 +76,8 @@ void handleMemoryReallocations(int handler, const CallEvent &Call,
                    std::make_pair(FINAL_CALL,  (Handler)NULL));
   handlers.emplace(OpenShmemConstants::SHMEM_REALLOC,
                    std::make_pair(MEMORY_REALLOC, handleMemoryReallocations));
+  handlers.emplace(OpenShmemConstants::SHMEM_ALIGN,
+                   std::make_pair(MEMORY_ALIGN, handleMemoryAlignments));
 
   return handlers;
 }
