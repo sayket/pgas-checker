@@ -23,7 +23,14 @@ void handleMemoryReallocations(int handler, const CallEvent &Call,
         BReporter->reportUnSymmetricAccess(C, Call);
         return;
     }
-    bool isSizeValid = Properties::isMemoryAllocationValid(memRegionSize);
+
+    bool isReallocEligible = Properties::isEligibleForRealloc(State, reAllocVariable);
+    if(!isReallocEligible){
+        BReporter->reportInvalidReallocation(C, Call);
+        return;
+    }    
+
+    bool isSizeValid = Properties::isArgNonNegative(memRegionSize);
     if(!isSizeValid){
         BReporter->reportInvalidSizeEntry(C, Call);
         return;
@@ -37,14 +44,22 @@ void handleMemoryAlignments(int handler, const CallEvent &Call,
                                                 CheckerContext &C, const OpenShmemBugReporter* BReporter){
 
   int memAlignmentIndex = 0, memRegionSizeIndex = 1;
+
   ProgramStateRef State = C.getState();
   const SVal memRegionSize = C.getSVal(Call.getArgExpr(memRegionSizeIndex));
+  const SVal alignmentVal = C.getSVal(Call.getArgExpr(memAlignmentIndex));
 
   switch (handler) {
 
   case PRE_CALL:
-    bool isSizeValid = Properties::isMemoryAllocationValid(memRegionSize);
+    bool isSizeValid = Properties::isArgNonNegative(memRegionSize);
     if(!isSizeValid){
+        BReporter->reportInvalidSizeEntry(C, Call);
+        return;
+    }
+
+    bool isAlignmentValid = Properties::isArgNonNegative(alignmentVal);
+    if(!isAlignmentValid){
         BReporter->reportInvalidSizeEntry(C, Call);
         return;
     }

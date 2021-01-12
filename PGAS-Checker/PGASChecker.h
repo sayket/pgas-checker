@@ -219,12 +219,13 @@ ProgramStateRef addToArrayList(ProgramStateRef State, const MemRegion* arrayRegi
 ProgramStateRef clearMap(ProgramStateRef State);
 ProgramStateRef taintArray(ProgramStateRef State, const MemRegion* arrayRegion, SVal startIndex, SVal numElements, SVal nodeIndex);
 RangeClass getMissingFreeAllocation(ProgramStateRef State);
-bool isMemoryAllocationValid(SVal allocationSize);
+bool isArgNonNegative(SVal allocationSize);
 bool checkTrackerRange(CheckerContext &C, const MemRegion* arrayRegion, SVal startIndex, SVal numElements, SVal nodeIndex);
 bool regionExistsInMap(ProgramStateRef State, const MemRegion* arrayRegion);
 bool testMissingFree(ProgramStateRef State);
 bool checkMissingFree(ProgramStateRef State, const MemRegion* arrayRegion);
 bool isMemRegionSymmetric(ProgramStateRef State, const MemRegion* arrayRegion);
+bool isEligibleForRealloc(ProgramStateRef State, const MemRegion* arrayRegion);
 } // namespace Properties
 
 

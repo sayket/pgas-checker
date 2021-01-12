@@ -18,6 +18,7 @@ public:
 		if(!DoubleFreeBug) DoubleFreeBug.reset(new BuiltinBug(&CB, "Double Free", "The Allocated Memory Region has been freed twice"));
 		if(!UselessBarrierBug) UselessBarrierBug.reset(new BuiltinBug(&CB, "Useless Barrier", "The Allocated Barrier is not required"));
 		if(!InvalidSizeBug) InvalidSizeBug.reset(new BuiltinBug(&CB, "Invalid Size", "The size specified for the memory region must be a non-negative integer"));
+		if(!InvalidReallocBug) InvalidReallocBug.reset(new BuiltinBug(&CB, "Invalid Reallocation", "The region specified for re-allocation must be allocated first"));
 		if(!NonSymmetricAccessBug) NonSymmetricAccessBug.reset(new BuiltinBug(&CB, "Unsymmetric Region Access", "The region that being accessed is not a symmetric variable"));
   	}
   	
@@ -51,6 +52,14 @@ public:
       	C.emitReport(std::move(R));
 	}
 
+	void reportInvalidReallocation(CheckerContext &C,const CallEvent &Call) const{
+		ExplodedNode *errorNode = C.generateErrorNode();
+      	if (!errorNode) return;
+      	auto R = std::make_unique<PathSensitiveBugReport>(*InvalidReallocBug, InvalidReallocBug->getDescription(), errorNode);
+      	R->addRange(Call.getSourceRange());
+      	C.emitReport(std::move(R));
+	}
+
 	void reportInvalidSizeEntry(CheckerContext &C,const CallEvent &Call) const {
 		ExplodedNode *errorNode = C.generateErrorNode();
       	if (!errorNode) return;
@@ -65,5 +74,6 @@ private:
 	std::unique_ptr<BuiltinBug> DoubleFreeBug;
 	std::unique_ptr<BuiltinBug> InvalidSizeBug;
 	std::unique_ptr<BuiltinBug> UselessBarrierBug;
+	std::unique_ptr<BuiltinBug> InvalidReallocBug;
 	std::unique_ptr<BuiltinBug> NonSymmetricAccessBug;
 };

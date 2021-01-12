@@ -84,7 +84,8 @@ ProgramStateRef Properties::freeThisAllocation(ProgramStateRef State,
                                           const MemRegion* arrayRegion) {
   if(State->contains<AllocationTracker>(arrayRegion)){
     State = State->remove<AllocationTracker>(arrayRegion);
-    State = State->remove<RegionTracker>(arrayRegion);
+    TrackingClass trackingClass;
+    State = State->set<RegionTracker>(arrayRegion, trackingClass);
     return State;
   }
   return NULL;
@@ -172,7 +173,7 @@ ProgramStateRef Properties::taintArray(ProgramStateRef State,
   return State;
 }
 
-bool Properties::isMemoryAllocationValid(SVal argVal){
+bool Properties::isArgNonNegative(SVal argVal){
 
   int64_t allocationSize = getIntegerValueForArgument(argVal);
   return (allocationSize >= 0);
@@ -222,6 +223,10 @@ bool Properties::isMemRegionSymmetric(ProgramStateRef State, const MemRegion* ar
   bool isStaticOrGlobal = (arrayRegion->hasGlobalsOrParametersStorage());
 
   return (isStaticOrGlobal || regionExistsInTrackingMap);
+}
+
+bool Properties::isEligibleForRealloc(ProgramStateRef State, const MemRegion* arrayRegion){
+  return State->contains<AllocationTracker>(arrayRegion);
 }
 
 ProgramStateRef Properties::clearMap(ProgramStateRef State){
