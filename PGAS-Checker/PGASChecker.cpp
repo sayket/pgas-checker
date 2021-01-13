@@ -8,6 +8,11 @@ defaultHandlers defaults;
 routineHandlers handlers;
 int barrierTracker = 0; // TODO: move into property layer, and add it as a property
 
+void perormSynchronization(CheckerContext &C, ProgramStateRef State){
+    State = Properties::clearMap(State);
+    Properties::transformState(C, State);
+}
+
 /**
  * @brief Invoked on allocation of symmetric variable
  *
@@ -49,7 +54,7 @@ void DefaultHandlers::handleMemoryAllocations(int handler,
     // every time we make a change to the program state we need to invoke the
     // transform state
     State = Properties::addToArrayList(State, ptrRegion);
-    Properties::transformState(C, State);
+    perormSynchronization(C, State);
     break;
   }
 }
@@ -74,10 +79,7 @@ void DefaultHandlers::handleBarriers(int handler, const CallEvent &Call,
   case PRE_CALL:
     break;
   case POST_CALL:
-
-    State = Properties::clearMap(State);
-    Properties::transformState(C, State);
-
+    perormSynchronization(C, State);
     break;
   }
 }
@@ -109,7 +111,7 @@ void DefaultHandlers::handleNonBlockingWrites(int handler,
     std::cout << "Failed while casting into the Element Region. Returning!!";
     return;
   }
-  
+
   switch (handler) {
   case PRE_CALL:
   {

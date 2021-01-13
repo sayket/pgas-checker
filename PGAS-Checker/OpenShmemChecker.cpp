@@ -6,6 +6,10 @@ using namespace ento;
 namespace clang{
 namespace ento{
 
+void perormSynchronization(CheckerContext &C, ProgramStateRef State){
+    State = Properties::clearMap(State);
+    Properties::transformState(C, State);
+}
 
 void handleMemoryReallocations(int handler, const CallEvent &Call,
                                                 CheckerContext &C, const OpenShmemBugReporter* BReporter){
@@ -46,8 +50,7 @@ void handleMemoryReallocations(int handler, const CallEvent &Call,
     State = Properties::recordThisAllocation(State, ptrRegion, C.generateErrorNode());
     
     State = Properties::addToArrayList(State, ptrRegion);
-    Properties::transformState(C, State);
-    }
+    perormSynchronization(C, State);    }
     break;
   }
 }
@@ -64,6 +67,7 @@ void handleMemoryAlignments(int handler, const CallEvent &Call,
   switch (handler) {
 
   case PRE_CALL:
+    {
     bool isSizeValid = Properties::isArgNonNegative(memRegionSize);
     if(!isSizeValid){
         BReporter->reportInvalidSizeEntry(C, Call);
@@ -75,7 +79,12 @@ void handleMemoryAlignments(int handler, const CallEvent &Call,
         BReporter->reportInvalidSizeEntry(C, Call);
         return;
     }
-
+    }
+    break;
+  case POST_CALL:
+    {
+      perormSynchronization(C, State);
+    }
     break;
   }
 }
@@ -112,7 +121,7 @@ void handleMemoryAllocationsWithCalloc(int handler, const CallEvent &Call,
     const MemRegion* ptrRegion = Call.getReturnValue().getAsRegion();
     State = Properties::recordThisAllocation(State, ptrRegion, C.generateErrorNode());
     State = Properties::addToArrayList(State, ptrRegion);
-    Properties::transformState(C, State);
+    perormSynchronization(C, State);
     }
     break;
   }
