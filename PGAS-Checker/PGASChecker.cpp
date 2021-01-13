@@ -109,7 +109,7 @@ void DefaultHandlers::handleNonBlockingWrites(int handler,
     std::cout << "Failed while casting into the Element Region. Returning!!";
     return;
   }
-
+  
   switch (handler) {
   case PRE_CALL:
   {
@@ -122,7 +122,7 @@ void DefaultHandlers::handleNonBlockingWrites(int handler,
     bool isRegionSymmetric = Properties::isMemRegionSymmetric(State, ER->getSuperRegion());
     if(!isRegionSymmetric){
       BReporter->reportUnSymmetricAccess(C, Call);
-      return;
+      // return;
     }
 
   }
@@ -204,7 +204,7 @@ void DefaultHandlers::handleReads(int handler, const CallEvent &Call,
     
     if(!isRegionSymmetric){
       BReporter->reportUnSymmetricAccess(C, Call);
-      return;
+      // return;
     }
 
     if (!ER){
@@ -220,7 +220,7 @@ void DefaultHandlers::handleReads(int handler, const CallEvent &Call,
       bool result = Properties::checkTrackerRange(C, parentRegion, Idx, num_elements, nodeIndex);
       if(!result){
         BReporter->reportUnsafeRead(C, Call);
-        return;
+        // return;
       }
     }
     
@@ -259,7 +259,7 @@ void DefaultHandlers::handleMemoryDeallocations(int handler,
     State = Properties::freeThisAllocation(State, freedVariable);
     if(!State){
       BReporter->reportDoubleFree(C, Call);
-      return;
+      // return;
     } else {
       Properties::transformState(C, State);
     }
@@ -290,7 +290,7 @@ void DefaultHandlers::handleFinalCalls(int handler,
     if(result){
         RangeClass rangeClass = Properties::getMissingFreeAllocation(State);
         BReporter->reportNoFree(C, rangeClass.getErrorNode());
-        return;
+        // return;
     }
     break;
   }

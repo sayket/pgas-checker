@@ -18,6 +18,8 @@ void handleMemoryReallocations(int handler, const CallEvent &Call,
   switch (handler) {
 
   case PRE_CALL:
+
+  {
     bool isRegionSymmetric = Properties::isMemRegionSymmetric(State, reAllocVariable);
     if(!isRegionSymmetric){
         BReporter->reportUnSymmetricAccess(C, Call);
@@ -35,7 +37,17 @@ void handleMemoryReallocations(int handler, const CallEvent &Call,
         BReporter->reportInvalidSizeEntry(C, Call);
         return;
     }
+  }
+    break;
 
+  case POST_CALL:
+    {
+    const MemRegion* ptrRegion = Call.getReturnValue().getAsRegion();
+    State = Properties::recordThisAllocation(State, ptrRegion, C.generateErrorNode());
+    
+    State = Properties::addToArrayList(State, ptrRegion);
+    Properties::transformState(C, State);
+    }
     break;
   }
 }
@@ -68,6 +80,44 @@ void handleMemoryAlignments(int handler, const CallEvent &Call,
   }
 }
 
+void handleMemoryAllocationsWithCalloc(int handler, const CallEvent &Call,
+                                                CheckerContext &C, const OpenShmemBugReporter* BReporter){
+
+  int countArgIndex = 0, sizeArgIndex = 1;
+
+  ProgramStateRef State = C.getState();
+  const SVal numElements = C.getSVal(Call.getArgExpr(countArgIndex));
+  const SVal sizeOfElement = C.getSVal(Call.getArgExpr(sizeArgIndex));
+
+  switch (handler) {
+
+  case PRE_CALL:
+  {
+    bool isSizeValid = Properties::isArgNonNegative(sizeOfElement);
+    if(!isSizeValid){
+        BReporter->reportInvalidSizeEntry(C, Call);
+        return;
+    }
+
+    bool isCountValid = Properties::isArgNonNegative(numElements);
+    if(!isCountValid){
+        BReporter->reportInvalidSizeEntry(C, Call);
+        return;
+      }
+    }
+    break;
+
+    case POST_CALL:
+    {
+    const MemRegion* ptrRegion = Call.getReturnValue().getAsRegion();
+    State = Properties::recordThisAllocation(State, ptrRegion, C.generateErrorNode());
+    State = Properties::addToArrayList(State, ptrRegion);
+    Properties::transformState(C, State);
+    }
+    break;
+  }
+}
+
 
 /**
  * @brief Provide implementation of routine types
@@ -93,6 +143,8 @@ void handleMemoryAlignments(int handler, const CallEvent &Call,
                    std::make_pair(MEMORY_REALLOC, handleMemoryReallocations));
   handlers.emplace(OpenShmemConstants::SHMEM_ALIGN,
                    std::make_pair(MEMORY_ALIGN, handleMemoryAlignments));
+  handlers.emplace(OpenShmemConstants::SHMEM_CALLOC,
+                   std::make_pair(MEMORY_ALLOC, handleMemoryAllocationsWithCalloc));
 
   return handlers;
 }
