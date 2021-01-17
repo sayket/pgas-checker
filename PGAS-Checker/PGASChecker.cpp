@@ -267,6 +267,7 @@ void DefaultHandlers::handleMemoryDeallocations(int handler,
     }
     // stop tracking freed variable
     State = Properties::removeFromState(State, freedVariable);
+    perormSynchronization(C, State);
     Properties::transformState(C, State);
     break;
   }
