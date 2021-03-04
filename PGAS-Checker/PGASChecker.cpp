@@ -1,25 +1,17 @@
 #include "PGASChecker.h"
 
+using namespace clang;
+using namespace ento;
+
 typedef std::unordered_map<int, Handler> defaultHandlers;
 defaultHandlers defaults;
 routineHandlers handlers;
-std::unique_ptr<BuiltinBug> BT;
+int barrierTracker = 0; // TODO: move into property layer, and add it as a property
 
-// Sample Bug Report
-// void reportUnsynchronizedAccess(
-//   const CallEvent &Call, CheckerContext &C) {
-
-//   ExplodedNode *errorNode = C.generateNonFatalErrorNode();
-//   if (!errorNode)
-//     return;
-
-//   if (!BT)
-//     BT.reset(new BuiltinBug(NULL, "Unsynchronized Access",
-//     ErrorMessages::UNSYNCHRONIZED_ACCESS));
-
-//   auto R = llvm::make_unique<BugReport>(*BT, BT->getDescription(),
-//   errorNode); R->addRange(Call.getSourceRange()); C.emitReport(std::move(R));
-// }
+void perormSynchronization(CheckerContext &C, ProgramStateRef State){
+    State = Properties::clearMap(State);
+    Properties::transformState(C, State);
+}
 
 /**
  * @brief Invoked on allocation of symmetric variable
@@ -27,10 +19,11 @@ std::unique_ptr<BuiltinBug> BT;
  * @param handler
  * @param Call
  * @param C
+ * @param BReporter
  */
 void DefaultHandlers::handleMemoryAllocations(int handler,
                                               const CallEvent &Call,
-                                              CheckerContext &C) {
+                                              CheckerContext &C, const OpenShmemBugReporter* BReporter) {
   ProgramStateRef State = C.getState();
   // get the reference to the allocated variable
   SymbolRef allocatedVariable = Call.getReturnValue().getAsSymbol();
@@ -41,16 +34,27 @@ void DefaultHandlers::handleMemoryAllocations(int handler,
     break;
 
   case POST_CALL:
+
+    const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(Call.getDecl());
+    if (!FD) return;
+    std::string routineName = FD->getNameInfo().getAsString();
+    
+    const MemRegion* ptrRegion = Call.getReturnValue().getAsRegion();
+    
     // add unitilized variables to unitilized list
-    State = Properties::addToUnintializedList(State, allocatedVariable);
+    State = Properties::recordThisAllocation(State, ptrRegion, C.generateErrorNode());
+    
     // mark is synchronized by default
     State = Properties::markAsSynchronized(State, allocatedVariable);
+    
     // remove the variable from the freed list if allocated again
     State = Properties::removeFromFreeList(State, allocatedVariable);
+    
     // update the program state graph;
     // every time we make a change to the program state we need to invoke the
     // transform state
-    Properties::transformState(C, State);
+    State = Properties::addToArrayList(State, ptrRegion);
+    perormSynchronization(C, State);
     break;
   }
 }
@@ -62,28 +66,20 @@ void DefaultHandlers::handleMemoryAllocations(int handler,
  * @param handler
  * @param Call
  * @param C
+ * @param BReporter
  */
 void DefaultHandlers::handleBarriers(int handler, const CallEvent &Call,
-                                     CheckerContext &C) {
+                                     CheckerContext &C, const OpenShmemBugReporter* BReporter) {
+
+  //TODO: Add Extra Barrier Tracker in this function
 
   ProgramStateRef State = C.getState();
-  auto trackedVariables = State->get<CheckerState>();
 
   switch (handler) {
   case PRE_CALL:
     break;
   case POST_CALL:
-    // iterate through all the track variables so far variables
-    // set each of the values to synchronized
-    for (PGASMapImpl::iterator I = trackedVariables.begin(),
-                               E = trackedVariables.end();
-         I != E; ++I) {
-      SymbolRef symmetricVariable = I->first;
-      // mark all symmetric variables as synchronized
-      State = Properties::markAsSynchronized(State, symmetricVariable);
-      // important to invoke this each time/each variable
-      Properties::transformState(C, State);
-    }
+    perormSynchronization(C, State);
     break;
   }
 }
@@ -94,41 +90,68 @@ void DefaultHandlers::handleBarriers(int handler, const CallEvent &Call,
  * @param handler
  * @param Call
  * @param C
+ * @param BReporter
  */
 void DefaultHandlers::handleNonBlockingWrites(int handler,
                                               const CallEvent &Call,
-                                              CheckerContext &C) {
+                                              CheckerContext &C, const OpenShmemBugReporter* BReporter) {
+  
+  int memRegionArgIndex = 0, numElementsArgIndex = 2, rankArgIndex = 3;
   ProgramStateRef State = C.getState();
-  SymbolRef destVariable = Call.getArgSVal(0).getAsSymbol();
+  SymbolRef destVariable = Call.getArgSVal(memRegionArgIndex).getAsSymbol();
 
-  if (!destVariable) {
+  const MemRegion* MR = Call.getArgSVal(memRegionArgIndex).getAsRegion();
+  if(!MR) {
+    std::cout << "Failed while getting the Memory Region. Returning!!";
+    return;
+  }
+
+  const ElementRegion *ER = dyn_cast<ElementRegion>(MR);
+  if (!ER){
+    std::cout << "Failed while casting into the Element Region. Returning!!";
     return;
   }
 
   switch (handler) {
   case PRE_CALL:
-    /*
-    to retrieve all all arguments of the invoked it you could something like
-    int argCount =  Call.getNumArgs();
-    for(int argIndex=0; argIndex < argCount; argIndex++) {
-      SVal argument = Call.getArgSVal(argIndex);
-      SymbolRef ref = argument.getAsSymbol();
-      //do something useful with this
+  {
+    // Checks if the Memory Region is global or static
+    if(MR->hasGlobalsOrParametersStorage()){
+        State = Properties::addToArrayList(State, ER->getSuperRegion());
+        Properties::transformState(C, State);
     }
-    */
-    const RefState *SS = State->get<CheckerState>(destVariable);
 
-    if (!SS) {
-      // TODOS: replace couts with bug reports
-      std::cout << ErrorMessages::VARIABLE_NOT_SYMMETRIC;
-      return;
+    bool isRegionSymmetric = Properties::isMemRegionSymmetric(State, ER->getSuperRegion());
+    if(!isRegionSymmetric){
+      BReporter->reportUnSymmetricAccess(C, Call);
+      // return;
     }
+
+  }
     break;
   case POST_CALL:
+
+    barrierTracker = 1;
     // remove the unintialized variables
     State = Properties::removeFromUnitializedList(State, destVariable);
     // mark as unsynchronized
     State = Properties::markAsUnsynchronized(State, destVariable);
+
+    if (!ER){
+      std::cout << "Not an element region\n";
+    } else {
+
+      // Get the array index 
+      DefinedOrUnknownSVal Idx = ER->getIndex().castAs<DefinedOrUnknownSVal>();
+      SVal numElements = C.getSVal(Call.getArgExpr(numElementsArgIndex));
+      SVal nodeIndex = C.getSVal(Call.getArgExpr(rankArgIndex));
+
+      const MemRegion* parentRegion = ER->getSuperRegion();
+      
+      State = Properties::taintArray(State, parentRegion, Idx, numElements, nodeIndex);
+      Properties::transformState(C, State);
+    }
+
     Properties::transformState(C, State);
     break;
   }
@@ -140,11 +163,13 @@ void DefaultHandlers::handleNonBlockingWrites(int handler,
  * @param handler
  * @param Call
  * @param C
+ * @param BReporter
  */
 void DefaultHandlers::handleBlockingWrites(int handler, const CallEvent &Call,
-                                           CheckerContext &C) {
+                                           CheckerContext &C, const OpenShmemBugReporter* BReporter) {
+  int memRegionArgIndex = 0;
   ProgramStateRef State = C.getState();
-  SymbolRef destVariable = Call.getArgSVal(0).getAsSymbol();
+  SymbolRef destVariable = Call.getArgSVal(memRegionArgIndex).getAsSymbol();
 
   switch (handler) {
   case PRE_CALL:
@@ -157,37 +182,59 @@ void DefaultHandlers::handleBlockingWrites(int handler, const CallEvent &Call,
   }
 }
 
-// invoked on read routines such as shmem_get
+/**
+ * @brief invoked on synchronization barriers; this is specifically for
+ * barrier_all
+ *
+ * @param handler
+ * @param Call
+ * @param C
+ * @param BReporter
+ */
 void DefaultHandlers::handleReads(int handler, const CallEvent &Call,
-                                  CheckerContext &C) {
+                                  CheckerContext &C, const OpenShmemBugReporter* BReporter) {
 
+  int memRegionArgIndex = 0, numElementsArgIndex = 2, rankArgIndex = 3; 
   ProgramStateRef State = C.getState();
-  SymbolRef symmetricVariable = Call.getArgSVal(0).getAsSymbol();
-  const RefState *SS = State->get<CheckerState>(symmetricVariable);
-
+  const MemRegion *const MR = Call.getArgSVal(memRegionArgIndex).getAsRegion();
+  const ElementRegion *const ER = dyn_cast<ElementRegion>(MR);
+  bool isRegionSymmetric = Properties::isMemRegionSymmetric(State, ER->getSuperRegion());
+    
   switch (handler) {
 
   case PRE_CALL:
-
-    // if the user is trying to access an unintialized bit of memory
-    if (State->contains<UnintializedVariables>(symmetricVariable)) {
-      // TODOS: replace couts with bug reports
-      std::cout << ErrorMessages::ACCESS_UNINTIALIZED_VARIABLE;
-      return;
+    
+    if(!isRegionSymmetric){
+      BReporter->reportUnSymmetricAccess(C, Call);
+      // return;
     }
 
-    // check if the symmetric memory is in an unsynchronized state
-    if (SS && SS->isUnSynchronized()) {
-      // reportUnsynchronizedAccess(Call, C);
-      std::cout << ErrorMessages::UNSYNCHRONIZED_ACCESS;
-      return;
+    if (!ER){
+      std::cout << "Not an element region\n";
+    } else {
+
+      DefinedOrUnknownSVal Idx = ER->getIndex().castAs<DefinedOrUnknownSVal>();
+      SVal num_elements = C.getSVal(Call.getArgExpr(numElementsArgIndex));
+      SVal nodeIndex = C.getSVal(Call.getArgExpr(rankArgIndex));
+ 
+      const MemRegion* parentRegion = ER->getSuperRegion();
+
+      bool result = Properties::checkTrackerRange(C, parentRegion, Idx, num_elements, nodeIndex);
+      if(!result){
+        BReporter->reportUnsafeRead(C, Call);
+        // return;
+      }
     }
+    
+    Properties::transformState(C, State);
 
     break;
 
   case POST_CALL:
     break;
+
   }
+
 }
 
 /**
@@ -196,13 +243,14 @@ void DefaultHandlers::handleReads(int handler, const CallEvent &Call,
  * @param handler
  * @param Call
  * @param C
+ * @param BReporter
  */
 void DefaultHandlers::handleMemoryDeallocations(int handler,
                                                 const CallEvent &Call,
-                                                CheckerContext &C) {
-
+                                                CheckerContext &C, const OpenShmemBugReporter* BReporter) {
+  int memRegionArgIndex = 0;
   ProgramStateRef State = C.getState();
-  SymbolRef freedVariable = Call.getArgSVal(0).getAsSymbol();
+  const MemRegion* freedVariable = Call.getArgSVal(memRegionArgIndex).getAsRegion()->getBaseRegion();
 
   switch (handler) {
   case PRE_CALL:
@@ -210,10 +258,42 @@ void DefaultHandlers::handleMemoryDeallocations(int handler,
   case POST_CALL:
     // add it to the freed variable set; since it is adding it multiple times
     // should have the same effect
-    State = Properties::addToFreeList(State, freedVariable);
+    State = Properties::freeThisAllocation(State, freedVariable);
+    if(!State){
+      BReporter->reportDoubleFree(C, Call);
+      // return;
+    } else {
+      Properties::transformState(C, State);
+    }
     // stop tracking freed variable
     State = Properties::removeFromState(State, freedVariable);
     Properties::transformState(C, State);
+    break;
+  }
+}
+
+
+/**
+ * @brief invoked when the ending shmem routines as called like shmem_finalize
+ *
+ * @param handler
+ * @param Call
+ * @param C
+ * @param BReporter
+ */
+void DefaultHandlers::handleFinalCalls(int handler,
+                                                const CallEvent &Call,
+                                                CheckerContext &C, const OpenShmemBugReporter* BReporter) {
+  switch (handler) {
+
+  case PRE_CALL:
+    ProgramStateRef State = C.getState();
+    bool result = Properties::testMissingFree(State);
+    if(result){
+        RangeClass rangeClass = Properties::getMissingFreeAllocation(State);
+        BReporter->reportNoFree(C, rangeClass.getErrorNode());
+        // return;
+    }
     break;
   }
 }
@@ -225,7 +305,7 @@ void DefaultHandlers::handleMemoryDeallocations(int handler,
  *
  * @param addHandlers
  */
-PGASChecker::PGASChecker(routineHandlers (*addHandlers)()) {
+PGASChecker::PGASChecker(routineHandlers (*addHandlers)()):BReporter(*this){
   handlers = addHandlers();
   addDefaultHandlers();
 }
@@ -241,6 +321,7 @@ void PGASChecker::addDefaultHandlers() {
   defaults.emplace(NON_BLOCKING_WRITE,
                    DefaultHandlers::handleNonBlockingWrites);
   defaults.emplace(READ_FROM_MEMORY, DefaultHandlers::handleReads);
+  defaults.emplace(FINAL_CALL, DefaultHandlers::handleFinalCalls);
 }
 
 /**
@@ -256,6 +337,8 @@ Handler PGASChecker::getDefaultHandler(Routine routineType) const {
   if (iterator != defaults.end()) {
     return iterator->second;
   }
+
+  std::cout << "Null Handler :P \n";
 
   return (Handler)NULL;
 }
@@ -273,7 +356,6 @@ Handler PGASChecker::getDefaultHandler(Routine routineType) const {
  */
 void PGASChecker::eventHandler(int handler, std::string &routineName,
                                const CallEvent &Call, CheckerContext &C) const {
-
   Handler routineHandler = NULL;
   // get the corresponding iterator to the key
   routineHandlers::const_iterator iterator = handlers.find(routineName);
@@ -295,12 +377,13 @@ void PGASChecker::eventHandler(int handler, std::string &routineName,
 
     // finally invoke the routine handler
     if (routineHandler != NULL) {
-      routineHandler(handler, Call, C);
+      routineHandler(handler, Call, C, &(BReporter));
     } else {
       std::cout << "No implementation found for this routine\n";
     }
   }
 }
+
 /**
  * @brief Gets called as a post callback on invocation of a routine
  *
@@ -312,14 +395,14 @@ void PGASChecker::checkPostCall(const CallEvent &Call,
   // get the declaration of the invoked routine
   const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(Call.getDecl());
 
-  if (!FD)
-    return;
+  if (!FD) return;
 
   // get the invoked routine name
   std::string routineName = FD->getNameInfo().getAsString();
-
+  
   // invoke the event handler to figure out the right implementation
   eventHandler(POST_CALL, routineName, Call, C);
+
 }
 // pre call callback
 void PGASChecker::checkPreCall(const CallEvent &Call, CheckerContext &C) const {
@@ -331,6 +414,7 @@ void PGASChecker::checkPreCall(const CallEvent &Call, CheckerContext &C) const {
 
   // get the name of the invoked routine
   std::string routineName = FD->getNameInfo().getAsString();
-
+  
   eventHandler(PRE_CALL, routineName, Call, C);
+
 }
