@@ -229,6 +229,15 @@ bool Properties::isEligibleForRealloc(ProgramStateRef State, const MemRegion* ar
   return State->contains<AllocationTracker>(arrayRegion);
 }
 
+bool Properties::isCallAtCorrectPlace(ProgramStateRef State){
+  int64_t positionIdx = State->get<InitState>();
+  return (positionIdx == 1);
+}
+
+void Properties::setValueForTheState(int64_t val){
+  State->set<InitState>(val);
+}
+
 ProgramStateRef Properties::clearMap(ProgramStateRef State){
     llvm::ImmutableMap<const clang::ento::MemRegion*, clang::ento::TrackingClass> map = State->get<RegionTracker>();
     for(llvm::ImmutableMap<const clang::ento::MemRegion*, clang::ento::TrackingClass>::iterator i = map.begin(); i != map.end(); i++){

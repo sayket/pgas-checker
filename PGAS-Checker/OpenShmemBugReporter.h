@@ -19,6 +19,7 @@ public:
 		if(!UselessBarrierBug) UselessBarrierBug.reset(new BuiltinBug(&CB, "Useless Barrier", "The Allocated Barrier is not required"));
 		if(!InvalidSizeBug) InvalidSizeBug.reset(new BuiltinBug(&CB, "Invalid Size", "The size specified for the memory region must be a non-negative integer"));
 		if(!InvalidReallocBug) InvalidReallocBug.reset(new BuiltinBug(&CB, "Invalid Reallocation", "The region specified for re-allocation must be allocated first"));
+		if(!WronglyPlacedCallBug) WronglyPlacedCallBug.reset(new BuiltinBug(&CB, "Incorrectly Placed Call", "A shmem call can only be used within a shmem_init and shmem_finalize"));
 		if(!NonSymmetricAccessBug) NonSymmetricAccessBug.reset(new BuiltinBug(&CB, "Unsymmetric Region Access", "The region that being accessed is not a symmetric variable"));
   	}
   	
@@ -68,6 +69,14 @@ public:
       	C.emitReport(std::move(R));
 	}
 
+	void reportWronglyPlacedShmemCall(CheckerContext &C,const CallEvent &Call) const {
+		ExplodedNode *errorNode = C.generateErrorNode();
+      	if (!errorNode) return;
+      	auto R = std::make_unique<PathSensitiveBugReport>(*WronglyPlacedCallBug, WronglyPlacedCallBug->getDescription(), errorNode);
+      	R->addRange(Call.getSourceRange());
+      	C.emitReport(std::move(R));
+	}
+
 private:
 	std::unique_ptr<BuiltinBug> ReadBug;
 	std::unique_ptr<BuiltinBug> NoFreeBug;
@@ -75,5 +84,6 @@ private:
 	std::unique_ptr<BuiltinBug> InvalidSizeBug;
 	std::unique_ptr<BuiltinBug> UselessBarrierBug;
 	std::unique_ptr<BuiltinBug> InvalidReallocBug;
+	std::unique_ptr<BuiltinBug> WronglyPlacedCallBug;
 	std::unique_ptr<BuiltinBug> NonSymmetricAccessBug;
 };

@@ -30,7 +30,8 @@ typedef enum routines {
   BLOCKING_WRITE,
   NON_BLOCKING_WRITE,
   READ_FROM_MEMORY,
-  FINAL_CALL
+  FINAL_CALL,
+  INIT_CALL
 } Routine;
 
 // ( non_blocking_routine_type, event_handler  )
@@ -101,6 +102,11 @@ struct ProgramStateTrait<CheckerState>
   }
 };
 
+class Idx {
+  public:
+    int64_t index;
+};
+
 class TrackingClass {
 
 private:
@@ -158,6 +164,8 @@ REGISTER_TRAIT_WITH_PROGRAMSTATE(UnintializedVariables, PGASSetImpl) //Like a pa
 REGISTER_TRAIT_WITH_PROGRAMSTATE(FreedVariables, PGASSetImpl)
 // // set of array regions
 REGISTER_TRAIT_WITH_PROGRAMSTATE(ArrayRegions, PGASMemRegionsImpl)
+// // variable to keep track of the shmem calls relative to init and finalise
+REGISTER_TRAIT_WITH_PROGRAMSTATE(InitState, Idx)
 //map of tracked indices
 REGISTER_MAP_WITH_PROGRAMSTATE(RegionTracker, const MemRegion*, TrackingClass) 
 //map of allocated/free variables
@@ -198,6 +206,8 @@ void handleReads(int handler, const CallEvent &Call, CheckerContext &C, const Op
 void handleMemoryDeallocations(int handler, const CallEvent &Call,
                                CheckerContext &C, const OpenShmemBugReporter* BReporter);
 void handleFinalCalls(int handler, const CallEvent &Call,
+                               CheckerContext &C, const OpenShmemBugReporter* BReporter);
+void handleInitCalls(int handler, const CallEvent &Call,
                                CheckerContext &C, const OpenShmemBugReporter* BReporter);
 } // namespace DefaultHandlers
 
