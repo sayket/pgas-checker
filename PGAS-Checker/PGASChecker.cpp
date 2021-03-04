@@ -300,6 +300,29 @@ void DefaultHandlers::handleFinalCalls(int handler,
 }
 
 /**
+ * @brief invoked when the starting shmem routines as called like shmem_
+ *
+ * @param handler
+ * @param Call
+ * @param C
+ * @param BReporter
+ */
+void DefaultHandlers::handleInitCalls(int handler,
+                                                const CallEvent &Call,
+                                                CheckerContext &C, const OpenShmemBugReporter* BReporter) {
+  switch (handler) {
+
+  case PRE_CALL:
+      ProgramStateRef State = C.getState();
+      
+    break;
+  case POST_CALL:
+      
+    break;  
+  }
+}
+
+/**
  * @brief Construct a new PGASChecker::PGASChecker object
  * Does two things:
  * Get the library specific handlers, populate default handlers
@@ -323,6 +346,7 @@ void PGASChecker::addDefaultHandlers() {
                    DefaultHandlers::handleNonBlockingWrites);
   defaults.emplace(READ_FROM_MEMORY, DefaultHandlers::handleReads);
   defaults.emplace(FINAL_CALL, DefaultHandlers::handleFinalCalls);
+  defaults.emplace(INIT_CALL, DefaultHandlers::handleInitCalls);
 }
 
 /**
