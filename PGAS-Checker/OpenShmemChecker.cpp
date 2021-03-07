@@ -148,6 +148,8 @@ void handleMemoryAllocationsWithCalloc(int handler, const CallEvent &Call,
                    std::make_pair(READ_FROM_MEMORY,  (Handler)NULL));
   handlers.emplace(OpenShmemConstants::SHMEM_FINALIZE,
                    std::make_pair(FINAL_CALL,  (Handler)NULL));
+  handlers.emplace(OpenShmemConstants::SHMEM_INIT,
+                   std::make_pair(INIT_CALL,  (Handler)NULL));
   handlers.emplace(OpenShmemConstants::SHMEM_REALLOC,
                    std::make_pair(MEMORY_REALLOC, handleMemoryReallocations));
   handlers.emplace(OpenShmemConstants::SHMEM_ALIGN,

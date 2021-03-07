@@ -326,17 +326,19 @@ bool Properties::isEligibleForRealloc(ProgramStateRef State, const MemRegion* ar
  * @return bool
  */
 bool Properties::isCallAtCorrectPlace(ProgramStateRef State){
-  int64_t positionIdx = State->get<InitState>();
-  return (positionIdx == 1);
+  Idx positionIdx = State->get<InitState>();
+  return (positionIdx.index == 1);
 }
 
 /**
  * @brief This function sets the value for the path-sensitive variable InitState to val.
  *
+ * @param State
  * @param val
  */
-void Properties::setValueForTheState(int64_t val){
-  State->set<InitState>(val);
+void Properties::setValueForTheState(ProgramStateRef State, int64_t val){
+  Idx i1(val);
+  State->set<InitState>(i1);
 }
 
 /**

@@ -300,7 +300,7 @@ void DefaultHandlers::handleFinalCalls(int handler,
 }
 
 /**
- * @brief invoked when the starting shmem routines as called like shmem_
+ * @brief invoked when the starting shmem routines as called like shmem_init
  *
  * @param handler
  * @param Call
@@ -314,11 +314,8 @@ void DefaultHandlers::handleInitCalls(int handler,
 
   case PRE_CALL:
       ProgramStateRef State = C.getState();
-      
+      Properties::setValueForTheState(State, 1);
     break;
-  case POST_CALL:
-      
-    break;  
   }
 }
 

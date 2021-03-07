@@ -104,6 +104,9 @@ struct ProgramStateTrait<CheckerState>
 
 class Idx {
   public:
+    Idx(int64_t val){
+      index = val;
+    }
     int64_t index;
 };
 
@@ -236,6 +239,8 @@ bool testMissingFree(ProgramStateRef State);
 bool checkMissingFree(ProgramStateRef State, const MemRegion* arrayRegion);
 bool isMemRegionSymmetric(ProgramStateRef State, const MemRegion* arrayRegion);
 bool isEligibleForRealloc(ProgramStateRef State, const MemRegion* arrayRegion);
+void setValueForTheState(ProgramStateRef State, int64_t val);
+bool isCallAtCorrectPlace(ProgramStateRef State);
 } // namespace Properties
 
 
