@@ -27,6 +27,8 @@ const std::string SHMEM_CALLOC = "shmem_calloc";
 const std::string SHMEM_REALLOC = "shmem_realloc";
 const std::string SHMEM_ALIGN = "shmem_align";
 const std::string SHMEM_INIT = "shmem_init";
+const std::string SHMEM_P = "shmem_p";
+const std::string SHMEM_G = "shmem_g";
 } // namespace OpenShmemConstants
 }
 }

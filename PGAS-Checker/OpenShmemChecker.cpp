@@ -127,6 +127,122 @@ void handleMemoryAllocationsWithCalloc(int handler, const CallEvent &Call,
   }
 }
 
+void handleSingleNonBlockingWrite(int handler, const CallEvent &Call,
+                                          CheckerContext &C, const OpenShmemBugReporter* BReporter){
+
+  int memRegionArgIndex = 0,rankArgIndex = 2;
+  ProgramStateRef State = C.getState();
+  SymbolRef destVariable = Call.getArgSVal(memRegionArgIndex).getAsSymbol();
+
+  const MemRegion* MR = Call.getArgSVal(memRegionArgIndex).getAsRegion();
+  if(!MR) {
+    std::cout << "Failed while getting the Memory Region. Returning!!";
+    return;
+  }
+
+  const ElementRegion *ER = dyn_cast<ElementRegion>(MR);
+  if (!ER){
+    std::cout << "Failed while casting into the Element Region. Returning!!";
+    return;
+  }
+
+  switch (handler) {
+  case PRE_CALL:
+  {
+    std::cout << "shmem_p\n";
+    // Checks if the Memory Region is global or static
+    if(MR->hasGlobalsOrParametersStorage()){
+        State = Properties::addToArrayList(State, ER->getSuperRegion());
+        Properties::transformState(C, State);
+    }
+
+    bool isRegionSymmetric = Properties::isMemRegionSymmetric(State, ER->getSuperRegion());
+    if(!isRegionSymmetric){
+      BReporter->reportUnSymmetricAccess(C, Call);
+    }
+
+  }
+    break;
+  case POST_CALL:
+
+    // remove the unintialized variables
+    State = Properties::removeFromUnitializedList(State, destVariable);
+    // mark as unsynchronized
+    State = Properties::markAsUnsynchronized(State, destVariable);
+
+    if (!ER){
+      std::cout << "Not an element region\n";
+    } else {
+
+
+      int numberOfElements = 1;
+      const void* nE = &numberOfElements;
+
+      // Get the array index 
+      DefinedOrUnknownSVal Idx = ER->getIndex().castAs<DefinedOrUnknownSVal>();
+      SVal numElements = new SVal(nE, clang::ento::nonloc::LocAsInteger);
+      SVal nodeIndex = C.getSVal(Call.getArgExpr(rankArgIndex));
+
+      const MemRegion* parentRegion = ER->getSuperRegion();
+      
+      State = Properties::taintArray(State, parentRegion, Idx, numElements, nodeIndex);
+      Properties::transformState(C, State);
+    }
+
+    Properties::transformState(C, State);
+    break;
+  }
+
+}
+
+void handleSingleNonBlockingRead(int handler, const CallEvent &Call,
+                                          CheckerContext &C, const OpenShmemBugReporter* BReporter){
+
+  int memRegionArgIndex = 0, rankArgIndex = 2; 
+  ProgramStateRef State = C.getState();
+  const MemRegion *const MR = Call.getArgSVal(memRegionArgIndex).getAsRegion();
+  const ElementRegion *const ER = dyn_cast<ElementRegion>(MR);
+  bool isRegionSymmetric = Properties::isMemRegionSymmetric(State, ER->getSuperRegion());
+    
+  switch (handler) {
+
+  case PRE_CALL:
+    std::cout << "shmem_g\n";
+    if(!isRegionSymmetric){
+      BReporter->reportUnSymmetricAccess(C, Call);
+      // return;
+    }
+
+    if (!ER){
+      std::cout << "Not an element region\n";
+    } else {
+
+      int numberOfElements = 1;
+      const void* nE = &numberOfElements;
+
+      DefinedOrUnknownSVal Idx = ER->getIndex().castAs<DefinedOrUnknownSVal>();
+      SVal num_elements = new SVal(nE, clang::ento::nonloc::LocAsInteger);
+      SVal nodeIndex = C.getSVal(Call.getArgExpr(rankArgIndex));
+ 
+      const MemRegion* parentRegion = ER->getSuperRegion();
+
+      bool result = Properties::checkTrackerRange(C, parentRegion, Idx, num_elements, nodeIndex);
+      if(!result){
+        BReporter->reportUnsafeRead(C, Call);
+        // return;
+      }
+    }
+    
+    Properties::transformState(C, State);
+
+    break;
+
+  case POST_CALL:
+    break;
+
+  }
+
+}
 
 /**
  * @brief Provide implementation of routine types
@@ -156,6 +272,10 @@ void handleMemoryAllocationsWithCalloc(int handler, const CallEvent &Call,
                    std::make_pair(MEMORY_ALIGN, handleMemoryAlignments));
   handlers.emplace(OpenShmemConstants::SHMEM_CALLOC,
                    std::make_pair(MEMORY_ALLOC, handleMemoryAllocationsWithCalloc));
+  handlers.emplace(OpenShmemConstants::SHMEM_P,
+                   std::make_pair(NON_BLOCKING_WRITE, handleSingleNonBlockingWrite));
+  handlers.emplace(OpenShmemConstants::SHMEM_G,
+                   std::make_pair(READ_FROM_MEMORY, handleSingleNonBlockingRead));
 
   return handlers;
 }
