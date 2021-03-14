@@ -182,6 +182,7 @@ bool Properties::isArgNonNegative(SVal argVal){
 bool Properties::checkTrackerRange(CheckerContext &C,
                                           const MemRegion* arrayRegion, SVal startIndex, SVal numElements, SVal nodeIndex) {
   
+
   ProgramStateRef State = C.getState();
   if(State->contains<RegionTracker>(arrayRegion)){
     const TrackingClass *tracker = State->get<RegionTracker>(arrayRegion);
@@ -225,7 +226,7 @@ bool Properties::isMemRegionSymmetric(ProgramStateRef State, const MemRegion* ar
   return (isStaticOrGlobal || regionExistsInTrackingMap);
 }
 
-bool Properties::isEligibleForRealloc(ProgramStateRef State, const MemRegion* arrayRegion){
+bool Properties::isMemRegionAvailable(ProgramStateRef State, const MemRegion* arrayRegion){
   return State->contains<AllocationTracker>(arrayRegion);
 }
 

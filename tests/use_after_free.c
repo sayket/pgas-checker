@@ -13,7 +13,7 @@ int main(int argc, char *argv[])
     shmem_put(dest, source, 1, pe);	
     
     // free list
-    shem_free(dest);
+    shmem_free(dest);
     
     // Oops! Use after free complain
     shmem_get(dest, source, 1, pe);

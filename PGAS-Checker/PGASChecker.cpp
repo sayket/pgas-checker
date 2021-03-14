@@ -99,32 +99,45 @@ void DefaultHandlers::handleNonBlockingWrites(int handler,
   int memRegionArgIndex = 0, numElementsArgIndex = 2, rankArgIndex = 3;
   ProgramStateRef State = C.getState();
   SymbolRef destVariable = Call.getArgSVal(memRegionArgIndex).getAsSymbol();
-
+  
   const MemRegion* MR = Call.getArgSVal(memRegionArgIndex).getAsRegion();
   if(!MR) {
-    std::cout << "Failed while getting the Memory Region. Returning!!";
+    std::cout << "Failed while getting the Memory Region. Returning!!\n";
     return;
   }
 
+  const MemRegion* regionToCheck = MR;
+
   const ElementRegion *ER = dyn_cast<ElementRegion>(MR);
-  if (!ER){
-    std::cout << "Failed while casting into the Element Region. Returning!!";
-    return;
+  if (ER){
+    // std::cout << "Failed while casting into the Element Region. Returning!!\n";
+    regionToCheck = (ER->getSuperRegion());
   }
+
+  // const RegionOffset offSet = ER->getAsOffset();
+  // int64_t offsetVal = offSet.getOffset();
+  // const MemRegion* regionToCheck = (offsetVal == 0)?ER:(ER->getSuperRegion());
 
   switch (handler) {
   case PRE_CALL:
   {
     // Checks if the Memory Region is global or static
     if(MR->hasGlobalsOrParametersStorage()){
-        State = Properties::addToArrayList(State, ER->getSuperRegion());
+        State = Properties::addToArrayList(State, regionToCheck);
         Properties::transformState(C, State);
     }
 
-    bool isRegionSymmetric = Properties::isMemRegionSymmetric(State, ER->getSuperRegion());
+    bool isRegionSymmetric = Properties::isMemRegionSymmetric(State, regionToCheck);
     if(!isRegionSymmetric){
       BReporter->reportUnSymmetricAccess(C, Call);
       // return;
+    }
+
+
+    bool isMemRegionAvailable = Properties::isMemRegionAvailable(State, regionToCheck);
+    if(!isMemRegionAvailable){
+      BReporter->reportMissingRegion(C, Call);
+      return;
     }
 
   }
@@ -132,21 +145,38 @@ void DefaultHandlers::handleNonBlockingWrites(int handler,
   case POST_CALL:
 
     barrierTracker = 1;
+
     // remove the unintialized variables
     State = Properties::removeFromUnitializedList(State, destVariable);
     // mark as unsynchronized
+
     State = Properties::markAsUnsynchronized(State, destVariable);
 
     if (!ER){
-      std::cout << "Not an element region\n";
-    } else {
+      // std::cout << "Not an element region\n";
+      
+      // uint64_t val = 0;
+      // unsigned numBits = sizeof(val);
 
+      // llvm::APInt apInt = llvm::APInt(numBits, val);
+      // const llvm::APSInt apsInt = llvm::APSInt(apInt);
+      // DefinedOrUnknownSVal Idx = clang::ento::nonloc::ConcreteInt(apsInt);
+
+      const NonLoc Idx = C.getSValBuilder().makeArrayIndex(0);
+      SVal numElements = C.getSVal(Call.getArgExpr(numElementsArgIndex));
+      SVal nodeIndex = C.getSVal(Call.getArgExpr(rankArgIndex));
+
+      const MemRegion* parentRegion = regionToCheck;
+      
+      State = Properties::taintArray(State, parentRegion, Idx, numElements, nodeIndex);
+      Properties::transformState(C, State);
+    } else {
       // Get the array index 
       DefinedOrUnknownSVal Idx = ER->getIndex().castAs<DefinedOrUnknownSVal>();
       SVal numElements = C.getSVal(Call.getArgExpr(numElementsArgIndex));
       SVal nodeIndex = C.getSVal(Call.getArgExpr(rankArgIndex));
 
-      const MemRegion* parentRegion = ER->getSuperRegion();
+      const MemRegion* parentRegion = regionToCheck;
       
       State = Properties::taintArray(State, parentRegion, Idx, numElements, nodeIndex);
       Properties::transformState(C, State);
@@ -198,8 +228,14 @@ void DefaultHandlers::handleReads(int handler, const CallEvent &Call,
   ProgramStateRef State = C.getState();
   const MemRegion *const MR = Call.getArgSVal(memRegionArgIndex).getAsRegion();
   const ElementRegion *const ER = dyn_cast<ElementRegion>(MR);
-  bool isRegionSymmetric = Properties::isMemRegionSymmetric(State, ER->getSuperRegion());
-    
+  int64_t offsetVal = 0;
+  if(ER) {
+    const RegionOffset offSet = ER->getAsOffset();
+    offsetVal = offSet.getOffset();
+  }
+  const MemRegion* regionToCheck = (offsetVal == 0)?MR:(ER->getSuperRegion());
+  bool isRegionSymmetric = Properties::isMemRegionSymmetric(State, regionToCheck);
+  bool isMemRegionAvailable = Properties::isMemRegionAvailable(State, regionToCheck);  
   switch (handler) {
 
   case PRE_CALL:
@@ -209,16 +245,37 @@ void DefaultHandlers::handleReads(int handler, const CallEvent &Call,
       // return;
     }
 
+    if(!isMemRegionAvailable){
+      BReporter->reportMissingRegion(C, Call);
+      return;
+    }
+
     if (!ER){
-      std::cout << "Not an element region\n";
+      // std::cout << "Not an element region\n";
+      
+      const NonLoc Idx = C.getSValBuilder().makeArrayIndex(0);
+      SVal num_elements = C.getSVal(Call.getArgExpr(numElementsArgIndex));
+      SVal nodeIndex = C.getSVal(Call.getArgExpr(rankArgIndex));
+
+      const MemRegion* parentRegion = MR;
+      bool result = Properties::checkTrackerRange(C, parentRegion, Idx, num_elements, nodeIndex);
+      if(!result){
+        BReporter->reportUnsafeRead(C, Call);
+        // return;
+      }
     } else {
+      // uint64_t val = 0;
+      // unsigned numBits = sizeof(val);
+
+      // llvm::APInt apInt = llvm::APInt(numBits, val);
+      // const llvm::APSInt apsInt = llvm::APSInt(apInt);
+      // DefinedOrUnknownSVal Idx = clang::ento::nonloc::ConcreteInt(apsInt);
 
       DefinedOrUnknownSVal Idx = ER->getIndex().castAs<DefinedOrUnknownSVal>();
       SVal num_elements = C.getSVal(Call.getArgExpr(numElementsArgIndex));
       SVal nodeIndex = C.getSVal(Call.getArgExpr(rankArgIndex));
- 
-      const MemRegion* parentRegion = ER->getSuperRegion();
 
+      const MemRegion* parentRegion = ER->getSuperRegion();
       bool result = Properties::checkTrackerRange(C, parentRegion, Idx, num_elements, nodeIndex);
       if(!result){
         BReporter->reportUnsafeRead(C, Call);

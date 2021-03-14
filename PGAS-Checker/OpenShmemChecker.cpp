@@ -30,7 +30,7 @@ void handleMemoryReallocations(int handler, const CallEvent &Call,
         return;
     }
 
-    bool isReallocEligible = Properties::isEligibleForRealloc(State, reAllocVariable);
+    bool isReallocEligible = Properties::isMemRegionAvailable(State, reAllocVariable);
     if(!isReallocEligible){
         BReporter->reportInvalidReallocation(C, Call);
         return;
