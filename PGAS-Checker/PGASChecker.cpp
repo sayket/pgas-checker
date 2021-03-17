@@ -224,16 +224,21 @@ void DefaultHandlers::handleBlockingWrites(int handler, const CallEvent &Call,
 void DefaultHandlers::handleReads(int handler, const CallEvent &Call,
                                   CheckerContext &C, const OpenShmemBugReporter* BReporter) {
 
-  int memRegionArgIndex = 0, numElementsArgIndex = 2, rankArgIndex = 3; 
+  // symmetric mem region index is 1 (2nd argument)
+  int memRegionArgIndex = 1, numElementsArgIndex = 2, rankArgIndex = 3; 
+  
   ProgramStateRef State = C.getState();
   const MemRegion *const MR = Call.getArgSVal(memRegionArgIndex).getAsRegion();
   const ElementRegion *const ER = dyn_cast<ElementRegion>(MR);
   int64_t offsetVal = 0;
-  if(ER) {
-    const RegionOffset offSet = ER->getAsOffset();
-    offsetVal = offSet.getOffset();
-  }
-  const MemRegion* regionToCheck = (offsetVal == 0)?MR:(ER->getSuperRegion());
+  // if(ER) {
+  //   const RegionOffset offSet = ER->getAsOffset();
+  //   offsetVal = offSet.getOffset();
+  // }
+  // const MemRegion* regionToCheck = (offsetVal == 0)?MR:(ER->getSuperRegion());
+
+  /// If the region is not an element region (has array index)
+  const MemRegion* regionToCheck = (!ER)?MR:(ER->getSuperRegion());
   bool isRegionSymmetric = Properties::isMemRegionSymmetric(State, regionToCheck);
   bool isMemRegionAvailable = Properties::isMemRegionAvailable(State, regionToCheck);  
   switch (handler) {

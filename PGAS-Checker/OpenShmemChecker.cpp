@@ -144,8 +144,27 @@ void handleMemoryAllocationsWithCalloc(int handler, const CallEvent &Call,
                    std::make_pair(SYNCHRONIZATION, (Handler)NULL));
   handlers.emplace(OpenShmemConstants::SHMEM_PUT,
                    std::make_pair(NON_BLOCKING_WRITE, (Handler)NULL));
+
+//#define NB_WRITE ()
+
+  handlers.emplace("shmem_int64_put_nbi",
+                   std::make_pair(NON_BLOCKING_WRITE, (Handler)NULL));
+  handlers.emplace("shmem_int64_put",
+                   std::make_pair(NON_BLOCKING_WRITE, (Handler)NULL));
+  handlers.emplace("shmem_int_put",
+                   std::make_pair(NON_BLOCKING_WRITE, (Handler)NULL));
+
+
   handlers.emplace(OpenShmemConstants::SHMEM_GET,
                    std::make_pair(READ_FROM_MEMORY,  (Handler)NULL));
+  handlers.emplace("shmem_getmem_nbi",
+                   std::make_pair(READ_FROM_MEMORY, (Handler)NULL));
+  handlers.emplace("shmem_getmem",
+                   std::make_pair(READ_FROM_MEMORY, (Handler)NULL));
+  handlers.emplace("shmem_int_get",
+                   std::make_pair(READ_FROM_MEMORY, (Handler)NULL));
+
+
   handlers.emplace(OpenShmemConstants::SHMEM_FINALIZE,
                    std::make_pair(FINAL_CALL,  (Handler)NULL));
   handlers.emplace(OpenShmemConstants::SHMEM_REALLOC,

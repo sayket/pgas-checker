@@ -86,4 +86,54 @@ private:
 	std::unique_ptr<BuiltinBug> InvalidReallocBug;
 	std::unique_ptr<BuiltinBug> NonSymmetricAccessBug;
 	std::unique_ptr<BuiltinBug> MemRegionUnavailableBug;
+
+
+	/// Bug visitor class to find the node where the request region was previously
+  	/// used in order to include it into the BugReport path.
+	/*
+	class RequestNodeVisitor : public BugReporterVisitor {
+	public:
+	RequestNodeVisitor(const MemRegion *const MemoryRegion,
+	                   const std::string &ErrText)
+	    : RequestRegion(MemoryRegion), ErrorText(ErrText) {}
+
+	void Profile(llvm::FoldingSetNodeID &ID) const override {
+	  static int X = 0;
+	  ID.AddPointer(&X);
+	  ID.AddPointer(RequestRegion);
+	}
+
+	PathDiagnosticPieceRef VisitNode(const ExplodedNode *N,
+	                                 BugReporterContext &BRC,
+	                                 PathSensitiveBugReport &BR) override {
+		if (IsNodeFound)
+    		return nullptr;
+
+		const Request *const Req = N->getState()->get<RequestMap>(RequestRegion);
+		assert(Req && "The region must be tracked and alive, given that we've "
+		            "just emitted a report against it");
+		const Request *const PrevReq =
+		  N->getFirstPred()->getState()->get<RequestMap>(RequestRegion);
+
+		// Check if request was previously unused or in a different state.
+		if (!PrevReq || (Req->CurrentState != PrevReq->CurrentState)) {
+			IsNodeFound = true;
+
+			ProgramPoint P = N->getFirstPred()->getLocation();
+			PathDiagnosticLocation L =
+			    PathDiagnosticLocation::create(P, BRC.getSourceManager());
+
+			return std::make_shared<PathDiagnosticEventPiece>(L, ErrorText);
+  		}
+
+  		return nullptr;
+	}
+
+	private:
+		const MemRegion *const RequestRegion;
+		bool IsNodeFound = false;
+		std::string ErrorText;
+	};
+	*/
+
 };
